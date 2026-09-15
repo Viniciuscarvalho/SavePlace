@@ -431,7 +431,7 @@ GOOGLE_MAPS_API_KEY="your-restricted-key" \
 npm run test:integration:google-places
 ```
 
-Provider response content is not persisted in M0. The cache/idempotency and provider-ID persistence boundaries for M1 are documented in [`docs/adr/`](docs/adr/).
+Provider response content is not persisted in M0. Cache, idempotency and durable provider-data boundaries remain private planning material until the M1 implementation is ready to be published.
 
 ## Repository philosophy
 
