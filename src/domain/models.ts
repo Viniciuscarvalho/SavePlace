@@ -1,14 +1,15 @@
 import { z } from "zod";
 
-export const PlatformSchema = z.enum(["youtube", "instagram", "tiktok", "web", "upload", "unknown"]);
+export const PlatformSchema = z.enum(["youtube", "instagram", "tiktok", "web", "unknown"]);
 export type Platform = z.infer<typeof PlatformSchema>;
 
 export const PlaceCategorySchema = z.enum(["FOOD", "TRAVEL", "OTHER"]);
 export type PlaceCategory = z.infer<typeof PlaceCategorySchema>;
 
 export const EvidenceSchema = z.object({
-  type: z.enum(["metadata", "caption", "transcript", "frame", "user_input"]),
+  type: z.enum(["title", "description", "author", "thumbnail", "embed", "transcript", "page_metadata"]),
   text: z.string().min(1),
+  sourceUrl: z.string().url().optional(),
 });
 export type Evidence = z.infer<typeof EvidenceSchema>;
 
@@ -26,48 +27,38 @@ export const PlaceCandidateSchema = z.object({
 export type PlaceCandidate = z.infer<typeof PlaceCandidateSchema>;
 
 export const ResolvedPlaceSchema = z.object({
-  name: z.string(),
-  normalizedName: z.string(),
-  category: PlaceCategorySchema,
-  subcategory: z.string().optional(),
-  address: z.string(),
-  city: z.string(),
-  state: z.string().optional(),
-  country: z.string(),
-  latitude: z.number(),
-  longitude: z.number(),
-  provider: z.string(),
-  providerPlaceId: z.string(),
-  extractionConfidence: z.number().min(0).max(1),
-  resolutionConfidence: z.number().min(0).max(1),
-  overallConfidence: z.number().min(0).max(1),
-  verified: z.literal(true),
+  name: z.string(), normalizedName: z.string(), category: PlaceCategorySchema,
+  subcategory: z.string().optional(), address: z.string(), city: z.string(),
+  state: z.string().optional(), country: z.string(), latitude: z.number(), longitude: z.number(),
+  provider: z.string(), providerPlaceId: z.string(), extractionConfidence: z.number().min(0).max(1),
+  resolutionConfidence: z.number().min(0).max(1), overallConfidence: z.number().min(0).max(1), verified: z.literal(true),
 });
 export type ResolvedPlace = z.infer<typeof ResolvedPlaceSchema>;
 
 export type SourceEvidence = {
   input: string;
+  canonicalUrl: string;
+  contentId?: string;
   platform: Platform;
-  caption?: string;
+  author?: string;
   title?: string;
-  transcript?: string;
+  description?: string;
+  thumbnailUrl?: string;
   evidence: Evidence[];
 };
 
 export type AcquisitionResult =
   | { status: "acquired"; source: SourceEvidence }
-  | { status: "media_required"; platform: Platform; reason: string; nextAction: "upload_video" }
+  | { status: "insufficient_evidence"; platform: Platform; canonicalUrl?: string; reason: string }
   | { status: "unsupported"; reason: string };
 
 export type AnalysisResult = {
-  status: "completed" | "media_required" | "needs_review" | "failed";
-  source: { input: string; platform: Platform };
+  status: "completed" | "insufficient_evidence" | "needs_review" | "failed";
+  source: { input: string; platform: Platform; canonicalUrl?: string; contentId?: string };
+  evidence: Evidence[];
   candidates: PlaceCandidate[];
   places: ResolvedPlace[];
-  processing: {
-    extractionMethod: "metadata" | "transcript" | "frames" | "multimodal" | "none";
-    durationMs: number;
-  };
+  processing: { extractionMethod: "url_metadata" | "transcript" | "visual" | "multimodal" | "none"; durationMs: number };
   reason?: string;
-  nextAction?: "upload_video" | "review";
+  nextAction?: "review";
 };
