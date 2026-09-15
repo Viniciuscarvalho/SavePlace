@@ -2,10 +2,8 @@ import type { AcquisitionResult } from "../domain/models.js";
 import type { ContentSource } from "./content-source.js";
 
 /**
- * M0 policy: a YouTube URL is a source reference, not permission or a guarantee
- * that the underlying media can be downloaded. We intentionally do not hide a
- * scraper/downloader behind this adapter. Metadata/transcript acquisition can
- * be added through an approved/reliable provider later.
+ * YouTube is deferred while M0 validates URL-only TikTok acquisition. A social
+ * URL is never treated as permission to download the underlying media.
  */
 export class YouTubeSource implements ContentSource {
   canHandle(input: string): boolean {
@@ -19,10 +17,9 @@ export class YouTubeSource implements ContentSource {
 
   async acquire(_input: string): Promise<AcquisitionResult> {
     return {
-      status: "media_required",
+      status: "insufficient_evidence",
       platform: "youtube",
-      reason: "The YouTube URL was recognized, but M0 does not assume direct access to protected social video media or transcripts.",
-      nextAction: "upload_video",
+      reason: "YouTube URL evidence acquisition is deferred while M0 validates TikTok.",
     };
   }
 }
