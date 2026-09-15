@@ -1,0 +1,12 @@
+{
+  "id": "youtube-19Ls-ZMU86c",
+  "input": "https://www.youtube.com/shorts/19Ls-ZMU86c",
+  "platform": "youtube",
+  "stage": "M0",
+  "expectedAcquisition": "media_required",
+  "groundTruth": {
+    "places": null,
+    "status": "pending_media_upload"
+  },
+  "notes": "First real SavePlace test. URL-only acquisition is intentionally not treated as guaranteed media access. Once the video is supplied as a fixture, add human-verified ground truth places before evaluating extraction."
+}
