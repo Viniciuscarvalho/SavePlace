@@ -107,6 +107,23 @@ function optionalLiteral(value: string | null, evidence: Evidence[]): string | u
   return value !== null && appearsInEvidence(value, evidence) ? value : undefined;
 }
 
+/**
+ * The LLM confidence is an input, never the whole score. A candidate can only
+ * reach a high confidence when the acquired evidence contains independent,
+ * literal location signals. This ceiling is intentionally conservative.
+ */
+export function calibrateExtractionConfidence(modelConfidence: number, evidence: Evidence[], hints: {
+  cityHint?: string | undefined;
+  neighborhoodHint?: string | undefined;
+  countryHint?: string | undefined;
+}): number {
+  const evidenceSupport = Math.min(evidence.length, 3) * 0.1;
+  const locationSignals = [hints.cityHint, hints.neighborhoodHint, hints.countryHint].filter(Boolean).length;
+  const locationSupport = Math.min(locationSignals, 3) * 0.1;
+  const observableCeiling = Math.min(0.95, 0.55 + evidenceSupport + locationSupport);
+  return Math.min(modelConfidence, observableCeiling);
+}
+
 function materializeCandidate(candidate: LlmCandidate, sourceEvidence: Evidence[]): PlaceCandidate | null {
   const evidenceIndices = [...new Set(candidate.evidenceIndices)];
   const evidence = evidenceIndices.map((index) => sourceEvidence[index]).filter((item): item is Evidence => item !== undefined);
@@ -128,7 +145,7 @@ function materializeCandidate(candidate: LlmCandidate, sourceEvidence: Evidence[
     ...(cityHint ? { cityHint } : {}),
     ...(neighborhoodHint ? { neighborhoodHint } : {}),
     ...(countryHint ? { countryHint } : {}),
-    extractionConfidence: candidate.extractionConfidence,
+    extractionConfidence: calibrateExtractionConfidence(candidate.extractionConfidence, evidence, { cityHint, neighborhoodHint, countryHint }),
     evidence,
   };
 }

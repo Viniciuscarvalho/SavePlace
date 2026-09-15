@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { PlaceCandidate } from "../domain/models.js";
-import type { PlaceMatch, PlaceProvider } from "./place-resolver.js";
+import type { PlaceMatch, AuditablePlaceProvider, PlaceSearchRun } from "./place-resolver.js";
 
 const GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
 const GOOGLE_TEXT_SEARCH_BUDGET_KEY = "google_places_text_search_pro";
@@ -45,6 +45,8 @@ export type GooglePlacesProviderOptions = {
   usageLedger?: UsageLedger;
   /** A deliberately conservative cap below Google's current free tier. */
   monthlyRequestLimit?: number;
+  /** Optional local estimate per Text Search request; it is not a billing source of truth. */
+  textSearchEstimatedCostUsd?: number;
   now?: () => Date;
 };
 
@@ -81,12 +83,13 @@ function confidenceFor(candidate: PlaceCandidate, providerName: string, address:
  * minimum fields needed to validate a candidate and fails closed on invalid,
  * unavailable, or over-budget responses.
  */
-export class GooglePlacesProvider implements PlaceProvider {
+export class GooglePlacesProvider implements AuditablePlaceProvider {
   readonly name = "google_places_new";
   private readonly apiKeyValue: string;
   private readonly fetchFn: typeof fetch;
   private readonly usageLedger: UsageLedger;
   private readonly monthlyRequestLimit: number;
+  private readonly textSearchEstimatedCostUsd: number | undefined;
   private readonly now: () => Date;
 
   constructor(options: GooglePlacesProviderOptions) {
@@ -95,18 +98,26 @@ export class GooglePlacesProvider implements PlaceProvider {
     this.fetchFn = options.fetchFn ?? fetch;
     this.usageLedger = options.usageLedger ?? new InMemoryUsageLedger();
     this.monthlyRequestLimit = options.monthlyRequestLimit ?? 500;
+    this.textSearchEstimatedCostUsd = options.textSearchEstimatedCostUsd;
     this.now = options.now ?? (() => new Date());
     if (!Number.isInteger(this.monthlyRequestLimit) || this.monthlyRequestLimit < 1) {
       throw new Error("Google Places monthly request limit must be a positive integer.");
     }
+    if (this.textSearchEstimatedCostUsd !== undefined && this.textSearchEstimatedCostUsd < 0) {
+      throw new Error("Google Places Text Search estimated cost must be non-negative.");
+    }
   }
 
   async search(candidate: PlaceCandidate): Promise<PlaceMatch[]> {
+    return (await this.searchWithTrace(candidate)).matches;
+  }
+
+  async searchWithTrace(candidate: PlaceCandidate): Promise<PlaceSearchRun> {
     if (!await this.usageLedger.tryConsume({
       key: GOOGLE_TEXT_SEARCH_BUDGET_KEY,
       period: periodAt(this.now()),
       limit: this.monthlyRequestLimit,
-    })) return [];
+    })) return { matches: [], requestCount: 0 };
 
     let response: Response;
     try {
@@ -120,19 +131,19 @@ export class GooglePlacesProvider implements PlaceProvider {
         body: JSON.stringify({ textQuery: queryFor(candidate), languageCode: "pt-BR", maxResultCount: 5 }),
       });
     } catch {
-      return [];
+      return { matches: [], requestCount: 1, ...(this.textSearchEstimatedCostUsd === undefined ? {} : { estimatedCostUsd: this.textSearchEstimatedCostUsd }) };
     }
 
-    if (!response.ok) return [];
+    if (!response.ok) return { matches: [], requestCount: 1, ...(this.textSearchEstimatedCostUsd === undefined ? {} : { estimatedCostUsd: this.textSearchEstimatedCostUsd }) };
 
     let parsed: z.infer<typeof GoogleTextSearchResponseSchema>;
     try {
       parsed = GoogleTextSearchResponseSchema.parse(await response.json());
     } catch {
-      return [];
+      return { matches: [], requestCount: 1, ...(this.textSearchEstimatedCostUsd === undefined ? {} : { estimatedCostUsd: this.textSearchEstimatedCostUsd }) };
     }
 
-    return parsed.places.flatMap((place) => {
+    const matches = parsed.places.flatMap((place) => {
       const city = component(place.addressComponents, "locality")
         ?? component(place.addressComponents, "postal_town")
         ?? component(place.addressComponents, "administrative_area_level_2");
@@ -154,6 +165,7 @@ export class GooglePlacesProvider implements PlaceProvider {
         verified: true as const,
       }];
     }).sort((left, right) => right.resolutionConfidence - left.resolutionConfidence);
+    return { matches, requestCount: 1, ...(this.textSearchEstimatedCostUsd === undefined ? {} : { estimatedCostUsd: this.textSearchEstimatedCostUsd }) };
   }
 
 }

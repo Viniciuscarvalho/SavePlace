@@ -71,6 +71,13 @@ export type AnalysisResult = {
       outputTokens: number;
       estimatedCostUsd: number;
     };
+    resolution?: {
+      provider: string;
+      requestCount: number;
+      /** Undefined means the provider request was made but is not costed locally. */
+      estimatedCostUsd?: number;
+      unpricedRequestCount: number;
+    };
   };
   reason?: string;
   nextAction?: "review";

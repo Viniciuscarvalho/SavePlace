@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SourceEvidence } from "../src/domain/models.js";
-import { OpenAIPlaceExtractor } from "../src/extraction/place-extractor.js";
+import { calibrateExtractionConfidence, OpenAIPlaceExtractor } from "../src/extraction/place-extractor.js";
 
 const source: SourceEvidence = {
   input: "https://vt.tiktok.com/example/",
@@ -61,6 +61,14 @@ describe("OpenAIPlaceExtractor", () => {
       },
     });
     expect(result.candidates[0]?.evidence).toEqual([source.evidence[0]]);
+    expect(result.candidates[0]?.extractionConfidence).toBe(0.91);
+  });
+
+  it("caps extraction confidence using literal evidence and location signals", () => {
+    expect(calibrateExtractionConfidence(0.99, [source.evidence[0]!], {})).toBeCloseTo(0.65);
+    expect(calibrateExtractionConfidence(0.99, [source.evidence[0]!], {
+      cityHint: "São Paulo", neighborhoodHint: "Pinheiros", countryHint: "Brasil",
+    })).toBeCloseTo(0.95);
   });
 
   it("fails closed when the model names a place absent from its selected evidence", async () => {

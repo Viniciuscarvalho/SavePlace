@@ -2,11 +2,14 @@
   "id": "youtube-19Ls-ZMU86c",
   "input": "https://www.youtube.com/shorts/19Ls-ZMU86c",
   "platform": "youtube",
-  "stage": "deferred",
-  "expectedAcquisition": "insufficient_evidence",
-  "groundTruth": {
-    "places": null,
-    "status": "youtube_provider_deferred"
+  "live": false,
+  "fixture": "youtube-19Ls-ZMU86c.json",
+  "expected": {
+    "acquisition": "unsupported",
+    "decision": "failed",
+    "manualStatus": "pending",
+    "candidates": [],
+    "places": []
   },
-  "notes": "Historical YouTube case. M0 is URL-only and does not request media upload; YouTube acquisition is deferred until after TikTok and Instagram validation."
+  "notes": "Historical control case. M0 has no YouTube adapter, so this case does not run against paid providers and is excluded from quality scoring."
 }

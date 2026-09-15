@@ -3,6 +3,16 @@ import type { ContentSourceRouter } from "../ingestion/content-source.js";
 import type { AuditablePlaceExtractor, ExtractionRun, PlaceExtractor } from "../extraction/place-extractor.js";
 import type { PlaceResolver } from "../resolution/place-resolver.js";
 
+export function deduplicateResolvedPlaces<T extends { provider: string; providerPlaceId: string; overallConfidence: number }>(places: T[]): T[] {
+  const byProviderIdentity = new Map<string, T>();
+  for (const place of places) {
+    const key = `${place.provider}:${place.providerPlaceId}`;
+    const current = byProviderIdentity.get(key);
+    if (!current || place.overallConfidence > current.overallConfidence) byProviderIdentity.set(key, place);
+  }
+  return [...byProviderIdentity.values()];
+}
+
 export class AnalyzeSource {
   constructor(private readonly sources: ContentSourceRouter, private readonly extractor: PlaceExtractor, private readonly resolver: PlaceResolver) {}
 
@@ -29,9 +39,13 @@ export class AnalyzeSource {
 
     const extraction = await this.extract(acquisition.source);
     const candidates = extraction.candidates;
-    const resolved = await Promise.all(candidates.map((candidate) => this.resolver.resolve(candidate)));
-    const places = resolved.filter((place): place is NonNullable<typeof place> => place !== null);
-    const status = candidates.length > 0 && places.length === candidates.length ? "completed" : "needs_review";
+    const resolutions = await Promise.all(candidates.map((candidate) => this.resolver.resolveWithTrace(candidate)));
+    const resolved = resolutions.flatMap((resolution) => resolution.place ? [resolution.place] : []);
+    const places = deduplicateResolvedPlaces(resolved);
+    const status = candidates.length > 0 && resolved.length === candidates.length ? "completed" : "needs_review";
+    const resolutionRequests = resolutions.reduce((sum, resolution) => sum + resolution.requestCount, 0);
+    const knownResolutionCost = resolutions.reduce((sum, resolution) => sum + (resolution.estimatedCostUsd ?? 0), 0);
+    const unpricedRequestCount = resolutions.filter((resolution) => resolution.requestCount > 0 && resolution.estimatedCostUsd === undefined).reduce((sum, resolution) => sum + resolution.requestCount, 0);
 
     return {
       status,
@@ -42,6 +56,14 @@ export class AnalyzeSource {
         extractionMethod: "url_metadata",
         durationMs: performance.now() - startedAt,
         ...(extraction.trace ? { extraction: extraction.trace } : {}),
+        ...(resolutionRequests > 0 ? {
+          resolution: {
+            provider: resolutions[0]?.provider ?? "unknown",
+            requestCount: resolutionRequests,
+            ...(unpricedRequestCount === 0 ? { estimatedCostUsd: knownResolutionCost } : {}),
+            unpricedRequestCount,
+          },
+        } : {}),
       },
       ...(extraction.trace?.status === "unavailable" ? { reason: "The configured extraction provider is unavailable." } : {}),
       ...(extraction.trace?.status === "failed" ? { reason: "The extraction provider could not produce a valid candidate set." } : {}),
