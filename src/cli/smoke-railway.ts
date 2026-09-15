@@ -22,6 +22,9 @@ if (!baseUrl || !probeToken) {
 const endpoint = new URL("/internal/probes/tiktok", baseUrl);
 const response = await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${probeToken}` } });
 if (!response.ok) {
+  if (response.status === 503) {
+    throw new Error("Railway probe is unavailable. Configure a non-empty PROBE_TOKEN as a service variable for this deployment environment, then redeploy.");
+  }
   throw new Error(`Railway probe returned HTTP ${response.status}.`);
 }
 

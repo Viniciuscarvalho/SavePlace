@@ -5,10 +5,9 @@ import { TikTokSource } from "./ingestion/tiktok-source.js";
 import { createProbeServer } from "./http/probe-server.js";
 import { EmptyPlaceProvider, PlaceResolver } from "./resolution/place-resolver.js";
 
-function requiredEnvironment(name: string): string {
+function optionalEnvironment(name: string): string | undefined {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} must be set.`);
-  return value;
+  return value || undefined;
 }
 
 function portFromEnvironment(): number {
@@ -24,7 +23,10 @@ const analyzer = new AnalyzeSource(
   new PlaceResolver(new EmptyPlaceProvider()),
 );
 
-const server = createProbeServer({ analyzer, probeToken: requiredEnvironment("PROBE_TOKEN") });
+// The health endpoint must remain available so Railway can report a clear
+// configuration failure. The authenticated probe itself stays disabled until
+// its secret is present.
+const server = createProbeServer({ analyzer, probeToken: optionalEnvironment("PROBE_TOKEN") });
 const port = portFromEnvironment();
 
 server.listen(port, "0.0.0.0", () => {
