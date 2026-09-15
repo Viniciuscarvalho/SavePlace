@@ -1,0 +1,24 @@
+{
+  "name": "saveplace",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Multimodal place extraction and resolution spike",
+  "scripts": {
+    "analyze": "tsx src/cli/analyze.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
