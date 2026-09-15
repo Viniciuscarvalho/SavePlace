@@ -9,9 +9,9 @@ Turn social videos into verified, structured places.
 M0 validates the core pipeline before a WebApp, database, authentication, or iOS Share Extension.
 
 ```text
-URL or local video
+Social URL
   -> source acquisition
-  -> metadata/transcript evidence
+  -> provider-backed URL evidence
   -> place extraction
   -> place resolution
   -> validated structured JSON
@@ -22,8 +22,8 @@ URL or local video
 1. Precision over cost, latency, and simplicity.
 2. The LLM extracts candidates; a place provider verifies addresses.
 3. Never invent an address when resolution fails.
-4. Progressive inference: metadata -> transcript -> selected frames -> multimodal reasoning.
-5. Social URLs are not assumed to expose downloadable media. If evidence cannot be acquired, return `media_required` and request an upload.
+4. Acquire the cheapest legitimate URL evidence first; richer provider-backed evidence can be added only when justified.
+5. M0 is URL-only. It never downloads protected media or asks the user to upload it; unavailable evidence returns `insufficient_evidence`.
 6. Every result should be observable: method, confidence, latency, token usage, and cost.
 
 ## M0 CLI
@@ -31,10 +31,36 @@ URL or local video
 ```bash
 npm install
 cp .env.example .env
-npm run analyze -- "https://www.youtube.com/shorts/19Ls-ZMU86c"
+npm run analyze -- "https://vt.tiktok.com/ZSq4UprxR/"
 ```
 
-The first YouTube Short is intentionally kept as an eval case. Acquisition restrictions are part of the product problem: the adapter must degrade to `media_required` rather than depend on scraping/downloading video.
+The TikTok adapter sends the original short URL directly to TikTok's official oEmbed endpoint. TikTok resolves it server-side and returns attributable metadata plus canonical post identity; SavePlace does not preflight or download the media URL.
+
+Run the live provider contract test explicitly in the target runtime:
+
+```bash
+npm run test:integration:tiktok
+```
+
+The live test is excluded from the default deterministic suite because network access and third-party content can change.
+
+## Railway deployment probe
+
+M0 remains a CLI. The small HTTP process exists only to prove that the target runtime can acquire the acceptance TikTok URL; it is not a public ingestion API or a WebApp.
+
+`railway.toml` uses Railpack, compiles TypeScript to `dist/`, starts `node dist/server.js`, and configures `GET /health` as the deployment healthcheck. No Dockerfile is required.
+
+Before deploying the draft PR, add a non-empty `PROBE_TOKEN` as a Railway service variable. Railway provides `PORT`; do not set it yourself.
+
+After generating a Railway public domain, run the authenticated smoke test from a trusted terminal:
+
+```bash
+SAVEPLACE_PROBE_URL="https://your-service.up.railway.app" \
+PROBE_TOKEN="your-secret" \
+npm run test:railway:smoke
+```
+
+The smoke test calls `POST /internal/probes/tiktok` with a bearer token. The endpoint only evaluates the fixed M0 acceptance URL and returns allowlisted status, canonical identity, evidence types and counts. It never accepts a supplied URL or returns caption, author, thumbnail, prompt data or tokens.
 
 ## M0 success criteria
 

@@ -1,0 +1,18 @@
+{
+  "id": "tiktok-ZSq4UprxR",
+  "input": "https://vt.tiktok.com/ZSq4UprxR/",
+  "platform": "tiktok",
+  "stage": "M0.2",
+  "strategy": "official_oembed_url_only",
+  "expectedAcquisition": "acquired",
+  "groundTruth": {
+    "descriptionContains": ["Madre", "Pinheiros"],
+    "futureExtractionTarget": {
+      "name": "Madre",
+      "neighborhood": "Pinheiros",
+      "city": "São Paulo"
+    },
+    "placeResolution": "pending_provider_verification"
+  },
+  "notes": "Acceptance case for direct short-URL acquisition. TikTok oEmbed must return canonical content ID and real evidence without media download or upload."
+}
