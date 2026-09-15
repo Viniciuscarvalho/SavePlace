@@ -9,8 +9,8 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))));
 });
 
-async function startServer(analyzer: SourceAnalyzer): Promise<string> {
-  const server = createProbeServer({ analyzer, probeToken: "test-token" });
+async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string } = { probeToken: "test-token" }): Promise<string> {
+  const server = createProbeServer({ analyzer, probeToken: options.probeToken });
   servers.push(server);
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -37,6 +37,22 @@ describe("Railway probe server", () => {
   it("serves an unauthenticated healthcheck", async () => {
     const baseUrl = await startServer({ execute: vi.fn() });
     await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok" });
+  });
+
+  it("keeps health available but fails closed when its token is missing", async () => {
+    const execute = vi.fn();
+    const baseUrl = await startServer({ execute }, {});
+
+    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok" });
+
+    const response = await fetch(`${baseUrl}/internal/probes/tiktok`, {
+      method: "POST",
+      headers: { Authorization: "Bearer any-token" },
+    });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: "probe_unavailable" });
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("requires a token and rejects other methods", async () => {

@@ -10,7 +10,11 @@ export interface SourceAnalyzer {
 
 export type ProbeServerOptions = {
   analyzer: SourceAnalyzer;
-  probeToken: string;
+  /**
+   * Omitted only when the deployment is misconfigured. In that state health
+   * checks remain available, while the probe endpoint fails closed.
+   */
+  probeToken?: string | undefined;
   acceptanceUrl?: string;
 };
 
@@ -68,7 +72,13 @@ export function createProbeServer(options: ProbeServerOptions): Server {
       return;
     }
 
-    if (!hasValidBearerToken(request, options.probeToken)) {
+    const probeToken = options.probeToken?.trim();
+    if (!probeToken) {
+      writeJson(response, 503, { error: "probe_unavailable" });
+      return;
+    }
+
+    if (!hasValidBearerToken(request, probeToken)) {
       writeJson(response, 401, { error: "unauthorized" });
       return;
     }

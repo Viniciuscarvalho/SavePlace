@@ -58,7 +58,20 @@ export type AnalysisResult = {
   evidence: Evidence[];
   candidates: PlaceCandidate[];
   places: ResolvedPlace[];
-  processing: { extractionMethod: "url_metadata" | "transcript" | "visual" | "multimodal" | "none"; durationMs: number };
+  processing: {
+    extractionMethod: "url_metadata" | "transcript" | "visual" | "multimodal" | "none";
+    durationMs: number;
+    extraction?: {
+      status: "completed" | "unavailable" | "failed";
+      provider: string;
+      model: string;
+      promptVersion: string;
+      durationMs: number;
+      inputTokens: number;
+      outputTokens: number;
+      estimatedCostUsd: number;
+    };
+  };
   reason?: string;
   nextAction?: "review";
 };

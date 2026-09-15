@@ -298,13 +298,13 @@ The first deployment target is a small persistent Node.js service on Railway. Th
 
 ```mermaid
 flowchart LR
-    GH[GitHub] --> R[Railway<br/>Node.js / TypeScript]
-    R --> T[TikTok acquisition]
-    R --> I[Instagram acquisition - next]
-    R --> AI[LLM - M0.3]
-    R --> P[Place Provider - M0.4]
-    R -. M1 .-> DB[(PostgreSQL / Supabase)]
-    W[WebApp - M1] --> R
+    GH[GitHub] --> R[Railway<br/>M0.2 diagnostic probe]
+    R -. fixed authenticated probe .-> T[TikTok oEmbed]
+    CLI[M0 CLI / local runner] --> T
+    CLI --> AI[LLM - M0.3]
+    CLI --> P[Place Provider - M0.4]
+    API[M1 processing service] --> DB[(PostgreSQL / Supabase)]
+    W[WebApp - after M1] --> API
 ```
 
 The early goal is to keep infrastructure small and inexpensive. Cost growth should primarily come from successful product usage, not idle architecture.
@@ -369,8 +369,8 @@ Dates express sequencing, not release commitments.
 | URL-only architecture | 🟢 Defined |
 | TikTok adapter | 🟡 Validation in progress |
 | Railway runtime probe | 🟡 Validation in progress |
-| LLM structured extraction | ⚪ Planned — M0.3 |
-| Place resolution | ⚪ Planned — M0.4 |
+| LLM structured extraction | 🟡 Implemented locally; live credential validation pending |
+| Place resolution | 🟡 Implemented locally; live credential validation pending |
 | Golden eval suite | ⚪ Planned — M0.5 |
 | Instagram adapter | ⚪ Planned |
 | WebApp | ⚪ Planned — M1 |
@@ -399,6 +399,39 @@ npm run analyze -- "https://vt.tiktok.com/..."
 ```
 
 Explicit network/provider tests are kept separate from the deterministic test suite because third-party content and availability can change.
+
+## Current M0 validation
+
+### M0.2 — TikTok acquisition and Railway probe
+
+TikTok short URLs are sent directly to TikTok's official oEmbed endpoint; SavePlace never follows the user-controlled redirect or downloads media. The Railway HTTP process is only a narrow deployment diagnostic, not a product API.
+
+`GET /health` is always available for Railway's healthcheck. `POST /internal/probes/tiktok` remains disabled with `503` until `PROBE_TOKEN` is configured, and it accepts neither arbitrary URLs nor unauthenticated requests.
+
+After setting `PROBE_TOKEN` as a **service variable** in the Railway deployment environment and redeploying, run from a trusted terminal:
+
+```bash
+SAVEPLACE_PROBE_URL="https://your-service.up.railway.app" \
+PROBE_TOKEN="your-secret" \
+npm run test:railway:smoke
+```
+
+### M0.3 — Structured LLM extraction
+
+`OpenAIPlaceExtractor` uses the Responses API with strict JSON Schema output. The prompt receives only eligible textual evidence, each candidate points back to acquired evidence, and any model-invented name or hint is discarded. The analysis trace records provider, model, prompt version, latency, tokens and estimated cost. Without `OPENAI_API_KEY`, the CLI returns no candidates and a trace of `unavailable`; it does not make a network call. For TikTok M0.2 today, that eligible input is the oEmbed description; title, page metadata and transcript are reserved for future adapters that legitimately expose them.
+
+### M0.4 — Google place verification
+
+`GooglePlacesProvider` is the first real, replaceable `PlaceProvider`. It verifies candidates through Google Places API (New) with a minimal field mask and returns a place only when the provider supplies name, city, country and coordinates. The default M0 guard permits 500 Text Search calls per UTC month per process and fails closed after that point.
+
+The live contract is opt-in and requires a restricted key; it is excluded from `npm test`:
+
+```bash
+GOOGLE_MAPS_API_KEY="your-restricted-key" \
+npm run test:integration:google-places
+```
+
+Provider response content is not persisted in M0. The cache/idempotency and provider-ID persistence boundaries for M1 are documented in [`docs/adr/`](docs/adr/).
 
 ## Repository philosophy
 

@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration:tiktok": "RUN_TIKTOK_INTEGRATION=1 vitest run tests/tiktok-source.integration.test.ts",
+    "test:integration:google-places": "RUN_GOOGLE_PLACES_INTEGRATION=1 vitest run tests/google-places-provider.integration.test.ts",
     "test:railway:smoke": "tsx src/cli/smoke-railway.ts"
   },
   "dependencies": {
