@@ -1,0 +1,10 @@
+{
+  "id": "tiktok-ZSq4DkXGA",
+  "input": "https://vt.tiktok.com/ZSq4DkXGA/",
+  "platform": "tiktok",
+  "stage": "M0.2",
+  "strategy": "url_only",
+  "expectedAcquisition": "acquired_or_insufficient_evidence",
+  "groundTruth": { "places": null, "status": "pending_human_verification" },
+  "notes": "First TikTok URL-only SavePlace case. Validate canonical redirect + official oEmbed evidence before adding LLM extraction ground truth. No upload fallback."
+}
