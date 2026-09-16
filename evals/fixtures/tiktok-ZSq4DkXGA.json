@@ -1,0 +1,30 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "needs_review",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSq4DkXGA/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@creator/video/1",
+      "contentId": "1"
+    },
+    "evidence": [{ "type": "description", "text": "Cabana em Cunha." }],
+    "candidates": [],
+    "places": [],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 4200,
+      "extraction": {
+        "status": "completed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 3900,
+        "inputTokens": 300,
+        "outputTokens": 20,
+        "estimatedCostUsd": 0.000084
+      }
+    },
+    "nextAction": "review"
+  }
+}

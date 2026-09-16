@@ -1,0 +1,15 @@
+{
+  "acquisition": "unsupported",
+  "analysis": {
+    "status": "failed",
+    "source": {
+      "input": "https://www.youtube.com/shorts/19Ls-ZMU86c",
+      "platform": "unknown"
+    },
+    "evidence": [],
+    "candidates": [],
+    "places": [],
+    "processing": { "extractionMethod": "none", "durationMs": 1 },
+    "reason": "No content-source adapter can handle this input yet."
+  }
+}

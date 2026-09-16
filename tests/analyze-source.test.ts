@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PlaceCandidate, SourceEvidence } from "../src/domain/models.js";
 import type { AuditablePlaceExtractor, ExtractionRun } from "../src/extraction/place-extractor.js";
 import { ContentSourceRouter, type ContentSource } from "../src/ingestion/content-source.js";
-import { AnalyzeSource } from "../src/pipeline/analyze-source.js";
+import { AnalyzeSource, deduplicateResolvedPlaces } from "../src/pipeline/analyze-source.js";
 import { PlaceResolver, type PlaceMatch, type PlaceProvider } from "../src/resolution/place-resolver.js";
 
 const source: SourceEvidence = {
@@ -56,5 +56,34 @@ describe("AnalyzeSource", () => {
     expect(result.places).toHaveLength(1);
     expect(result.places[0]).toMatchObject({ verified: true, provider: "test", extractionConfidence: 0.96 });
     expect(result.processing.extraction).toEqual({ status: "completed", ...trace.attribution });
+  });
+
+  it("deduplicates final places by provider identity while retaining the strongest confidence", () => {
+    const lower = { ...match, extractionConfidence: 0.9, overallConfidence: 0.9 };
+    const higher = { ...match, extractionConfidence: 0.97, overallConfidence: 0.95 };
+
+    expect(deduplicateResolvedPlaces([lower, higher])).toEqual([higher]);
+  });
+
+  it("reports provider request count separately from a resolved-place count", async () => {
+    const pipeline = new AnalyzeSource(new ContentSourceRouter([contentSource]), extractor, new PlaceResolver(provider));
+
+    const result = await pipeline.execute(source.input);
+
+    expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 1, unpricedRequestCount: 1 });
+  });
+
+  it("completes duplicate candidates once they resolve to the same provider identity", async () => {
+    const duplicateExtractor: AuditablePlaceExtractor = {
+      extract: async () => [candidate, { ...candidate, extractionConfidence: 0.9 }],
+      extractWithTrace: async () => ({ ...trace, candidates: [candidate, { ...candidate, extractionConfidence: 0.9 }] }),
+    };
+    const pipeline = new AnalyzeSource(new ContentSourceRouter([contentSource]), duplicateExtractor, new PlaceResolver(provider));
+
+    const result = await pipeline.execute(source.input);
+
+    expect(result.status).toBe("completed");
+    expect(result.places).toHaveLength(1);
+    expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 2, unpricedRequestCount: 2 });
   });
 });

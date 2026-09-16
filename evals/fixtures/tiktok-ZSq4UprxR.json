@@ -1,0 +1,58 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "completed",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSq4UprxR/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@carlossteola/video/7685511951581007125",
+      "contentId": "7685511951581007125"
+    },
+    "evidence": [{ "type": "description", "text": "Madre em Pinheiros, São Paulo, Brasil." }],
+    "candidates": [{
+      "rawName": "Madre",
+      "category": "FOOD",
+      "cityHint": "São Paulo",
+      "neighborhoodHint": "Pinheiros",
+      "countryHint": "Brasil",
+      "extractionConfidence": 0.85,
+      "evidence": [{ "type": "description", "text": "Madre em Pinheiros, São Paulo, Brasil." }]
+    }],
+    "places": [{
+      "name": "Madre Bar",
+      "normalizedName": "madre bar",
+      "category": "FOOD",
+      "address": "R. Padre Carvalho, 141 - Pinheiros, São Paulo - SP, Brasil",
+      "city": "São Paulo",
+      "state": "São Paulo",
+      "country": "Brasil",
+      "latitude": -23.564,
+      "longitude": -46.691,
+      "provider": "google_places_new",
+      "providerPlaceId": "fixture-google-madre-sao-paulo",
+      "extractionConfidence": 0.85,
+      "resolutionConfidence": 0.96,
+      "overallConfidence": 0.903,
+      "verified": true
+    }],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 6000,
+      "extraction": {
+        "status": "completed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 5500,
+        "inputTokens": 418,
+        "outputTokens": 251,
+        "estimatedCostUsd": 0.0003848
+      },
+      "resolution": {
+        "provider": "google_places_new",
+        "requestCount": 1,
+        "unpricedRequestCount": 1
+      }
+    }
+  }
+}

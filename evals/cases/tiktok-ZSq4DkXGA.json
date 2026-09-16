@@ -2,13 +2,14 @@
   "id": "tiktok-ZSq4DkXGA",
   "input": "https://vt.tiktok.com/ZSq4DkXGA/",
   "platform": "tiktok",
-  "stage": "M0.2",
-  "strategy": "official_oembed_url_only",
-  "expectedAcquisition": "acquired",
-  "groundTruth": {
-    "descriptionContains": ["Cabana", "cunha"],
-    "places": null,
-    "status": "pending_human_verification"
+  "live": true,
+  "fixture": "tiktok-ZSq4DkXGA.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "needs_review",
+    "manualStatus": "pending",
+    "candidates": [],
+    "places": []
   },
-  "notes": "Additional TikTok URL-only case. TikTok oEmbed resolves the short URL without a generic redirect preflight or upload fallback."
+  "notes": "Public URL-only acquisition case. Its place ground truth remains pending a human check and it is excluded from precision and recall until then."
 }

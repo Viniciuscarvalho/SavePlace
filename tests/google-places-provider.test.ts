@@ -68,6 +68,16 @@ describe("GooglePlacesProvider", () => {
     expect(fetchFn).toHaveBeenCalledOnce();
   });
 
+  it("records an optional local cost estimate only for a request that left the process", async () => {
+    const provider = new GooglePlacesProvider({
+      apiKey: "test-key",
+      textSearchEstimatedCostUsd: 0.032,
+      fetchFn: vi.fn().mockResolvedValue(new Response(JSON.stringify({ places: [] }), { status: 200 })) as unknown as typeof fetch,
+    });
+
+    await expect(provider.searchWithTrace(candidate)).resolves.toEqual({ matches: [], requestCount: 1, estimatedCostUsd: 0.032 });
+  });
+
   it.each([
     ["a non-success response", vi.fn().mockResolvedValue(new Response("", { status: 429 }))],
     ["invalid JSON", vi.fn().mockResolvedValue(new Response("not json", { status: 200 }))],

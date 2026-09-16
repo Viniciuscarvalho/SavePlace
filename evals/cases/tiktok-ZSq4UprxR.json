@@ -2,17 +2,14 @@
   "id": "tiktok-ZSq4UprxR",
   "input": "https://vt.tiktok.com/ZSq4UprxR/",
   "platform": "tiktok",
-  "stage": "M0.2",
-  "strategy": "official_oembed_url_only",
-  "expectedAcquisition": "acquired",
-  "groundTruth": {
-    "descriptionContains": ["Madre", "Pinheiros"],
-    "futureExtractionTarget": {
-      "name": "Madre",
-      "neighborhood": "Pinheiros",
-      "city": "São Paulo"
-    },
-    "placeResolution": "pending_provider_verification"
+  "live": true,
+  "fixture": "tiktok-ZSq4UprxR.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "completed",
+    "manualStatus": "verified",
+    "candidates": [{ "name": "Madre", "category": "FOOD", "city": "São Paulo" }],
+    "places": [{ "name": "Madre Bar", "city": "São Paulo", "provider": "google_places_new" }]
   },
-  "notes": "Acceptance case for direct short-URL acquisition. TikTok oEmbed must return canonical content ID and real evidence without media download or upload."
+  "notes": "Manually verified TikTok acceptance case. Add providerPlaceId only after it is checked against the configured Google project; the fixture identifier is intentionally synthetic."
 }

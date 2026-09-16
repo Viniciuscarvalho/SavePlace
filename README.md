@@ -304,7 +304,7 @@ flowchart LR
     CLI --> AI[LLM - M0.3]
     CLI --> P[Place Provider - M0.4]
     API[M1 processing service] --> DB[(PostgreSQL / Supabase)]
-    W[WebApp - after M1] --> API
+    W[WebApp - M2] --> API
 ```
 
 The early goal is to keep infrastructure small and inexpensive. Cost growth should primarily come from successful product usage, not idle architecture.
@@ -313,7 +313,7 @@ The early goal is to keep infrastructure small and inexpensive. Cost growth shou
 
 SavePlace treats evaluation as a product capability rather than a final testing phase.
 
-The initial golden dataset will grow from 10–15 real URLs toward a broader set covering restaurants, cafés, hotels, beaches, attractions, multi-place videos and ambiguous examples.
+The initial golden dataset will grow from 10–15 real public URLs toward a broader set covering restaurants, cafés, hotels, beaches, attractions, multi-place posts and ambiguous examples.
 
 Key quality metrics:
 
@@ -345,7 +345,8 @@ gantt
     Instagram adapter                 :ig, after m05, 10d
     section M1
     Processing engine + persistence   :m1a, after ig, 20d
-    WebApp MVP                        :m1b, after m1a, 20d
+    section M2
+    WebApp MVP                        :m2, after m1a, 20d
 ```
 
 Dates express sequencing, not release commitments.
@@ -355,10 +356,10 @@ Dates express sequencing, not release commitments.
 - **M0.2 — URL Evidence Acquisition:** make at least one TikTok URL reliably produce attributable evidence from the deployed runtime.
 - **M0.3 — Structured Extraction:** transform evidence into validated `PlaceCandidate[]` structured output.
 - **M0.4 — Place Resolution:** resolve candidates through an external geographic provider; never trust an LLM-generated address as truth.
-- **M0.5 — Evals:** benchmark 10–15 real videos before broadening the architecture.
+- **M0.5 — Evals:** benchmark 10–15 real public URLs before broadening the architecture.
 - **Instagram:** implement the second platform adapter and compare acquisition reliability.
 - **M1 — Processing Engine:** persistence, tracing, prompt/model versioning, cost accounting and asynchronous processing.
-- **M1 — WebApp:** URL input, processing visibility and verified result cards.
+- **M2 — WebApp:** URL input, processing visibility and verified result cards.
 - **Later:** iOS Share Extension, library, maps, visited/want-to-go state and multi-user productization.
 
 ## Current status
@@ -369,11 +370,11 @@ Dates express sequencing, not release commitments.
 | URL-only architecture | 🟢 Defined |
 | TikTok adapter | 🟡 Validation in progress |
 | Railway runtime probe | 🟡 Validation in progress |
-| LLM structured extraction | 🟡 Implemented locally; live credential validation pending |
-| Place resolution | 🟡 Implemented locally; live credential validation pending |
-| Golden eval suite | ⚪ Planned — M0.5 |
+| LLM structured extraction | 🟡 Implemented; live validation is local-only |
+| Place resolution | 🟡 Implemented; live validation is local-only |
+| Golden eval harness | 🟡 Implemented; corpus gate pending |
 | Instagram adapter | ⚪ Planned |
-| WebApp | ⚪ Planned — M1 |
+| WebApp | ⚪ Planned — M2 |
 | iOS Share Extension | ⚪ Future |
 
 ## Tech stack
@@ -424,6 +425,12 @@ npm run test:railway:smoke
 
 `GooglePlacesProvider` is the first real, replaceable `PlaceProvider`. It verifies candidates through Google Places API (New) with a minimal field mask and returns a place only when the provider supplies name, city, country and coordinates. The default M0 guard permits 500 Text Search calls per UTC month per process and fails closed after that point.
 
+When resolution makes a provider request, `processing.resolution` records its
+provider name, `requestCount`, and `unpricedRequestCount`. It includes
+`estimatedCostUsd` only when the local runner was given an explicit estimate;
+that estimate is absent when billing is unknown. No resolution trace is emitted
+when the pipeline made no provider request.
+
 The live contract is opt-in and requires a restricted key; it is excluded from `npm test`:
 
 ```bash
@@ -432,6 +439,37 @@ npm run test:integration:google-places
 ```
 
 Provider response content is not persisted in M0. Cache, idempotency and durable provider-data boundaries remain private planning material until the M1 implementation is ready to be published.
+
+### M0.5 — evaluation harness
+
+`npm run eval:m0` runs the committed fixture corpus without credentials or
+network calls, writes a local report to `evals/results/m0-fixtures.json`, and
+reports acquisition, candidate precision/recall, resolution accuracy where a
+manually verified provider ID is available, false positives, needs-review rate,
+latency percentiles, tokens, and estimated costs. `evals/results/` is ignored
+because it contains local timestamps and provider-cost observations.
+
+```bash
+npm run eval:m0
+
+# Explicitly opt in to TikTok, OpenAI and Google requests.
+RUN_M0_EVAL_LIVE=1 \
+OPENAI_API_KEY="your-key" \
+GOOGLE_MAPS_API_KEY="your-key" \
+GOOGLE_PLACES_TEXT_SEARCH_ESTIMATED_COST_USD="your-project-estimate" \
+npm run eval:m0:live
+```
+
+The optional Google estimate is a local gross-cost input, not billing truth.
+Leave it blank when the active billing price is unknown; the report will mark
+those provider calls as unpriced instead of treating them as free.
+
+The committed corpus currently proves the runner format only. The M0 quality
+gate stays red until it has at least 10 public TikTok cases, at least 10
+manually verified cases, one manually verified provider/place ID, and no
+unpriced provider request. `npm run eval:m0:gate` is intentionally live and
+fails closed without the two provider keys; use it only in a trusted terminal
+after reviewing its costs.
 
 ## Repository philosophy
 
