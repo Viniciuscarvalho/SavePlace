@@ -26,6 +26,7 @@ describe("OpenAIPlaceExtractor", () => {
     const fetchFn = vi.fn().mockResolvedValue(successfulResponse({
       candidates: [{
         rawName: "Madre",
+        entityKind: "venue",
         normalizedName: null,
         category: "FOOD",
         subcategory: null,
@@ -56,7 +57,7 @@ describe("OpenAIPlaceExtractor", () => {
       status: "completed",
       candidates: [{ rawName: "Madre", cityHint: "São Paulo", neighborhoodHint: "Pinheiros", countryHint: "Brasil" }],
       attribution: {
-        provider: "openai", model: "gpt-5.6-luna", promptVersion: "m0.3-url-evidence-v1",
+        provider: "openai", model: "gpt-5.6-luna", promptVersion: "m0.3-url-evidence-v2",
         inputTokens: 120, outputTokens: 30, estimatedCostUsd: 0.00006,
       },
     });
@@ -75,6 +76,7 @@ describe("OpenAIPlaceExtractor", () => {
     const fetchFn = vi.fn().mockResolvedValue(successfulResponse({
       candidates: [{
         rawName: "Invented Cafe",
+        entityKind: "venue",
         normalizedName: null,
         category: "FOOD",
         subcategory: null,
@@ -94,6 +96,7 @@ describe("OpenAIPlaceExtractor", () => {
     const fetchFn = vi.fn().mockResolvedValue(successfulResponse({
       candidates: [{
         rawName: "Madre",
+        entityKind: "venue",
         normalizedName: null,
         category: "FOOD",
         subcategory: null,
@@ -102,6 +105,26 @@ describe("OpenAIPlaceExtractor", () => {
         countryHint: null,
         extractionConfidence: 0.9,
         evidenceIndices: [99],
+      }],
+    }));
+    const extractor = new OpenAIPlaceExtractor({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });
+
+    await expect(extractor.extractWithTrace(source)).resolves.toMatchObject({ status: "completed", candidates: [] });
+  });
+
+  it("discards a city or neighborhood that the model classifies as an area", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(successfulResponse({
+      candidates: [{
+        rawName: "São Paulo",
+        entityKind: "area",
+        normalizedName: null,
+        category: "TRAVEL",
+        subcategory: null,
+        cityHint: "São Paulo",
+        neighborhoodHint: null,
+        countryHint: null,
+        extractionConfidence: 0.99,
+        evidenceIndices: [0],
       }],
     }));
     const extractor = new OpenAIPlaceExtractor({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });

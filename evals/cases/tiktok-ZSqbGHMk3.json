@@ -1,0 +1,15 @@
+{
+  "id": "tiktok-ZSqbGHMk3",
+  "input": "https://vt.tiktok.com/ZSqbGHMk3/",
+  "platform": "tiktok",
+  "live": true,
+  "fixture": "tiktok-ZSqbGHMk3.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "needs_review",
+    "manualStatus": "verified",
+    "candidates": [],
+    "places": []
+  },
+  "notes": "The official caption names only São Paulo, Pinheiros and Liberdade, not a specific venue. Generic geographic names must not become verified places."
+}

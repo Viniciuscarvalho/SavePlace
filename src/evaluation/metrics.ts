@@ -6,6 +6,7 @@ export type EvaluationReport = {
   version: "m0.5-v1";
   mode: "fixture" | "live";
   caseCount: number;
+  m0TikTokCaseCount: number;
   manuallyVerifiedCaseCount: number;
   pendingHumanVerificationCaseCount: number;
   metrics: {
@@ -68,11 +69,11 @@ function countMatched<TActual, TExpected>(actual: TActual[], expected: TExpected
 }
 
 export function calculateEvaluationReport(mode: EvaluationReport["mode"], observations: EvaluationObservation[]): EvaluationReport {
-  const verified = observations.filter(({ evaluationCase }) => evaluationCase.expected.manualStatus === "verified");
-  const expectedAcquired = observations.filter(({ evaluationCase }) => evaluationCase.expected.acquisition === "acquired");
-  const acquired = observations.filter(({ acquisition }) => acquisition === "acquired");
-  const acquisitionExpectationMatches = observations.filter(({ evaluationCase, acquisition }) => evaluationCase.expected.acquisition === acquisition);
-  const decisionExpectationMatches = observations.filter(({ evaluationCase, analysis }) => evaluationCase.expected.decision === analysis.status);
+  const m0Observations = observations.filter(({ evaluationCase }) => evaluationCase.platform === "tiktok");
+  const verified = m0Observations.filter(({ evaluationCase }) => evaluationCase.expected.manualStatus === "verified");
+  const acquired = m0Observations.filter(({ acquisition }) => acquisition === "acquired");
+  const acquisitionExpectationMatches = m0Observations.filter(({ evaluationCase, acquisition }) => evaluationCase.expected.acquisition === acquisition);
+  const decisionExpectationMatches = m0Observations.filter(({ evaluationCase, analysis }) => evaluationCase.expected.decision === analysis.status);
 
   const expectedCandidates = verified.flatMap(({ evaluationCase }) => evaluationCase.expected.candidates);
   const actualCandidates = verified.flatMap(({ analysis }) => analysis.candidates);
@@ -84,39 +85,44 @@ export function calculateEvaluationReport(mode: EvaluationReport["mode"], observ
   const expectedProviderIds = expectedPlaces.filter((place) => place.provider !== undefined && place.providerPlaceId !== undefined);
   const actualProviderIds = actualPlaces.filter((place) => expectedProviderIds.some((expected) => expected.provider === place.provider && expected.providerPlaceId === place.providerPlaceId));
 
-  const inputTokens = observations.reduce((sum, { analysis }) => sum + (analysis.processing.extraction?.inputTokens ?? 0), 0);
-  const outputTokens = observations.reduce((sum, { analysis }) => sum + (analysis.processing.extraction?.outputTokens ?? 0), 0);
-  const llmCost = observations.reduce((sum, { analysis }) => sum + (analysis.processing.extraction?.estimatedCostUsd ?? 0), 0);
-  const providerRequestCount = observations.reduce((sum, { analysis }) => sum + (analysis.processing.resolution?.requestCount ?? 0), 0);
-  const providerCost = observations.reduce((sum, { analysis }) => sum + (analysis.processing.resolution?.estimatedCostUsd ?? 0), 0);
-  const unpricedRequestCount = observations.reduce((sum, { analysis }) => sum + (analysis.processing.resolution?.unpricedRequestCount ?? 0), 0);
+  const inputTokens = m0Observations.reduce((sum, { analysis }) => sum + (analysis.processing.extraction?.inputTokens ?? 0), 0);
+  const outputTokens = m0Observations.reduce((sum, { analysis }) => sum + (analysis.processing.extraction?.outputTokens ?? 0), 0);
+  const llmCost = m0Observations.reduce((sum, { analysis }) => sum + (analysis.processing.extraction?.estimatedCostUsd ?? 0), 0);
+  const providerRequestCount = m0Observations.reduce((sum, { analysis }) => sum + (analysis.processing.resolution?.requestCount ?? 0), 0);
+  const providerCost = m0Observations.reduce((sum, { analysis }) => sum + (analysis.processing.resolution?.estimatedCostUsd ?? 0), 0);
+  const unpricedRequestCount = m0Observations.reduce((sum, { analysis }) => sum + (analysis.processing.resolution?.unpricedRequestCount ?? 0), 0);
   const totalEstimatedCostUsd = llmCost + providerCost;
-  const needsReviewCount = observations.filter(({ analysis }) => analysis.status === "needs_review").length;
+  const needsReviewCount = m0Observations.filter(({ analysis }) => analysis.status === "needs_review").length;
 
   const reasons: string[] = [];
-  const publicTikTokCases = observations.filter(({ evaluationCase }) => evaluationCase.platform === "tiktok").length;
+  const publicTikTokCases = m0Observations.length;
   if (publicTikTokCases < 10) reasons.push(`requires at least 10 public TikTok cases; found ${publicTikTokCases}`);
   if (verified.length < 10) reasons.push(`requires at least 10 manually verified cases; found ${verified.length}`);
   if (expectedProviderIds.length === 0) reasons.push("requires manually verified provider/place IDs before resolution accuracy can be measured");
   if (unpricedRequestCount > 0) reasons.push(`${unpricedRequestCount} PlaceProvider request(s) have no local cost estimate`);
+  const candidatePrecision = ratio(candidateMatchesCount, actualCandidates.length);
+  const resolutionAccuracy = ratio(actualProviderIds.length, expectedProviderIds.length);
+  if (candidatePrecision.value === null || candidatePrecision.value < 0.9) reasons.push("requires at least 90% candidate precision on manually verified TikTok cases");
+  if (resolutionAccuracy.value === null || resolutionAccuracy.value < 0.95) reasons.push("requires at least 95% resolution accuracy by provider/place ID");
 
   return {
     version: "m0.5-v1",
     mode,
     caseCount: observations.length,
+    m0TikTokCaseCount: m0Observations.length,
     manuallyVerifiedCaseCount: verified.length,
-    pendingHumanVerificationCaseCount: observations.length - verified.length,
+    pendingHumanVerificationCaseCount: m0Observations.length - verified.length,
     metrics: {
-      acquisitionSuccess: ratio(acquired.filter(({ evaluationCase }) => evaluationCase.expected.acquisition === "acquired").length, expectedAcquired.length),
-      acquisitionExpectationMatch: ratio(acquisitionExpectationMatches.length, observations.length),
-      candidatePrecision: ratio(candidateMatchesCount, actualCandidates.length),
+      acquisitionSuccess: ratio(acquired.length, m0Observations.length),
+      acquisitionExpectationMatch: ratio(acquisitionExpectationMatches.length, m0Observations.length),
+      candidatePrecision,
       candidateRecall: ratio(candidateMatchesCount, expectedCandidates.length),
-      resolutionAccuracyByProviderPlaceId: ratio(actualProviderIds.length, expectedProviderIds.length),
+      resolutionAccuracyByProviderPlaceId: resolutionAccuracy,
       endToEndPrecision: ratio(placeMatchesCount, actualPlaces.length),
       falsePositiveCount: actualPlaces.length - placeMatchesCount,
-      needsReviewRate: ratio(needsReviewCount, observations.length),
-      decisionExpectationMatch: ratio(decisionExpectationMatches.length, observations.length),
-      latencyMs: { p50: percentile(observations.map(({ analysis }) => analysis.processing.durationMs), 0.5), p95: percentile(observations.map(({ analysis }) => analysis.processing.durationMs), 0.95) },
+      needsReviewRate: ratio(needsReviewCount, m0Observations.length),
+      decisionExpectationMatch: ratio(decisionExpectationMatches.length, m0Observations.length),
+      latencyMs: { p50: percentile(m0Observations.map(({ analysis }) => analysis.processing.durationMs), 0.5), p95: percentile(m0Observations.map(({ analysis }) => analysis.processing.durationMs), 0.95) },
       llm: { inputTokens, outputTokens, estimatedCostUsd: llmCost },
       placeProvider: { requestCount: providerRequestCount, estimatedCostUsd: providerCost, unpricedRequestCount },
       totalEstimatedCostUsd,

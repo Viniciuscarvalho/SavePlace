@@ -7,9 +7,9 @@
   "expected": {
     "acquisition": "acquired",
     "decision": "needs_review",
-    "manualStatus": "pending",
+    "manualStatus": "verified",
     "candidates": [],
     "places": []
   },
-  "notes": "Public URL-only acquisition case. Its place ground truth remains pending a human check and it is excluded from precision and recall until then."
+  "notes": "Manually reviewed on 2026-09-16: the official caption identifies only Cunha/SP, not a specific cabin. A generic geographic candidate must remain in review."
 }

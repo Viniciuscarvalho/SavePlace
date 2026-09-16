@@ -1,0 +1,35 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "needs_review",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSqbGHMk3/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@comendoporsaopaulo/video/7632069167763492113",
+      "contentId": "7632069167763492113"
+    },
+    "evidence": [{ "type": "description", "text": "Restaurantes para conhecer em São Paulo, Pinheiros e Liberdade." }],
+    "candidates": [
+      { "rawName": "são paulo", "category": "TRAVEL", "extractionConfidence": 0.65, "evidence": [{ "type": "description", "text": "Restaurantes para conhecer em São Paulo, Pinheiros e Liberdade." }] },
+      { "rawName": "pinheiros", "category": "OTHER", "extractionConfidence": 0.65, "evidence": [{ "type": "description", "text": "Restaurantes para conhecer em São Paulo, Pinheiros e Liberdade." }] },
+      { "rawName": "liberdade", "category": "OTHER", "extractionConfidence": 0.65, "evidence": [{ "type": "description", "text": "Restaurantes para conhecer em São Paulo, Pinheiros e Liberdade." }] }
+    ],
+    "places": [],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 9340,
+      "extraction": {
+        "status": "completed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 8371,
+        "inputTokens": 346,
+        "outputTokens": 568,
+        "estimatedCostUsd": 0.0007508
+      },
+      "resolution": { "provider": "google_places_new", "requestCount": 3, "unpricedRequestCount": 3 }
+    },
+    "nextAction": "review"
+  }
+}

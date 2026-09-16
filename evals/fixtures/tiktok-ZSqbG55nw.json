@@ -1,0 +1,69 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "needs_review",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSqbG55nw/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@comendoporsaopaulo/video/7662122007412165905",
+      "contentId": "7662122007412165905"
+    },
+    "evidence": [{ "type": "description", "text": "Conhecendo o Bodega Pepito em Pinheiros, restaurante em São Paulo." }],
+    "candidates": [
+      {
+        "rawName": "bodega pepito",
+        "category": "FOOD",
+        "cityHint": "saopaulo",
+        "neighborhoodHint": "pinheiros",
+        "extractionConfidence": 0.85,
+        "evidence": [{ "type": "description", "text": "Conhecendo o Bodega Pepito em Pinheiros, restaurante em São Paulo." }]
+      },
+      {
+        "rawName": "pinheiros",
+        "category": "OTHER",
+        "cityHint": "saopaulo",
+        "extractionConfidence": 0.75,
+        "evidence": [{ "type": "description", "text": "Conhecendo o Bodega Pepito em Pinheiros, restaurante em São Paulo." }]
+      },
+      {
+        "rawName": "saopaulo",
+        "category": "OTHER",
+        "extractionConfidence": 0.65,
+        "evidence": [{ "type": "description", "text": "Conhecendo o Bodega Pepito em Pinheiros, restaurante em São Paulo." }]
+      }
+    ],
+    "places": [{
+      "name": "Bodega Pepito",
+      "normalizedName": "bodega pepito",
+      "category": "FOOD",
+      "address": "R. dos Pinheiros, 320 - Pinheiros, São Paulo - SP, 05422-000, Brasil",
+      "city": "São Paulo",
+      "state": "São Paulo",
+      "country": "Brasil",
+      "latitude": -23.5648094,
+      "longitude": -46.6813853,
+      "provider": "google_places_new",
+      "providerPlaceId": "ChIJW45YC3tXzpQRyYTdsEIA_9c",
+      "extractionConfidence": 0.85,
+      "resolutionConfidence": 0.93,
+      "overallConfidence": 0.8891006692,
+      "verified": true
+    }],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 9622,
+      "extraction": {
+        "status": "completed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 7849,
+        "inputTokens": 349,
+        "outputTokens": 482,
+        "estimatedCostUsd": 0.0006482
+      },
+      "resolution": { "provider": "google_places_new", "requestCount": 3, "unpricedRequestCount": 3 }
+    },
+    "nextAction": "review"
+  }
+}

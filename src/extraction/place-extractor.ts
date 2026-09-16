@@ -41,17 +41,18 @@ export class NoGuessPlaceExtractor implements PlaceExtractor {
 }
 
 const DEFAULT_MODEL = "gpt-5.6-luna";
-const DEFAULT_PROMPT_VERSION = "m0.3-url-evidence-v1";
+const DEFAULT_PROMPT_VERSION = "m0.3-url-evidence-v2";
 const DEFAULT_MAX_CANDIDATES = 5;
 const DEFAULT_INPUT_USD_PER_MILLION_TOKENS = 0.2;
 const DEFAULT_OUTPUT_USD_PER_MILLION_TOKENS = 1.2;
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_EVIDENCE_CHARS_PER_ITEM = 4_000;
 const MAX_EVIDENCE_CHARS_PER_REQUEST = 8_000;
 
 const LlmCandidateSchema = z.object({
   rawName: z.string().trim().min(1).max(120),
+  entityKind: z.enum(["venue", "attraction", "area"]),
   normalizedName: z.string().trim().min(1).max(120).nullable(),
   category: z.enum(["FOOD", "TRAVEL", "OTHER"]),
   subcategory: z.string().trim().min(1).max(80).nullable(),
@@ -125,6 +126,7 @@ export function calibrateExtractionConfidence(modelConfidence: number, evidence:
 }
 
 function materializeCandidate(candidate: LlmCandidate, sourceEvidence: Evidence[]): PlaceCandidate | null {
+  if (candidate.entityKind === "area") return null;
   const evidenceIndices = [...new Set(candidate.evidenceIndices)];
   const evidence = evidenceIndices.map((index) => sourceEvidence[index]).filter((item): item is Evidence => item !== undefined);
   if (evidence.length !== evidenceIndices.length || !appearsInEvidence(candidate.rawName, evidence)) return null;
@@ -165,10 +167,11 @@ function structuredOutputSchema(maxCandidates: number): Record<string, unknown> 
           additionalProperties: false,
           required: [
             "rawName", "normalizedName", "category", "subcategory", "cityHint",
-            "neighborhoodHint", "countryHint", "extractionConfidence", "evidenceIndices",
+            "neighborhoodHint", "countryHint", "entityKind", "extractionConfidence", "evidenceIndices",
           ],
           properties: {
             rawName: { type: "string", minLength: 1, maxLength: 120 },
+            entityKind: { type: "string", enum: ["venue", "attraction", "area"] },
             normalizedName: nullableString,
             category: { type: "string", enum: ["FOOD", "TRAVEL", "OTHER"] },
             subcategory: nullableString,
@@ -197,8 +200,9 @@ function promptFor(source: SourceEvidence, promptVersion: string): string {
   });
   return [
     `Prompt version: ${promptVersion}.`,
-    "Extract 0 to 5 place candidates from the literal source evidence below.",
-    "A place is a venue, attraction, city, neighborhood, or other visitable location explicitly named in the evidence.",
+    "Extract 0 to 5 specifically named venue or attraction candidates from the literal source evidence below.",
+    "A restaurant, bar, cafe, hotel, shop, museum, beach, landmark, or named attraction is a candidate. A city, neighborhood, state, country, or generic area is only a location hint and must use entityKind area; area candidates are discarded.",
+    "For a list of named venues, return each distinct venue or attraction (up to five). Do not return a generic area merely because the evidence mentions it.",
     "Do not infer image content, use outside knowledge, or invent names, hints, or evidence.",
     "rawName and every non-null hint must appear literally in its selected evidence. Use null when a field is not explicitly present.",
     "Return an empty candidates array when the evidence is ambiguous or does not explicitly name a place.",
