@@ -66,7 +66,9 @@ Copy `.env.example` to an ignored `.env`; never commit provider keys or tokens.
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Structured extraction and live evaluation | Only for LLM runs |
 | `GOOGLE_MAPS_API_KEY` | Google Place verification | Only for resolution/live evaluation |
-| `GOOGLE_PLACES_TEXT_SEARCH_ESTIMATED_COST_USD` | Local evaluation cost estimate | Optional; leave blank when unknown |
+| `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD` | Google Text Search unit price from the active billing contract | Optional; leave blank when unknown |
+| `GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE` | Where that Google price was verified | Optional but recommended with a price |
+| `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Date of the configured Google price | Optional but recommended with a price |
 | `PROBE_TOKEN` | Railway diagnostic probe | Required only for the remote probe |
 | `SAVEPLACE_PROBE_URL` | Railway smoke CLI | Required only for smoke testing |
 
@@ -114,13 +116,23 @@ The M0 gate requires:
 
 The corpus intentionally includes unavailable, ambiguous and multi-place posts.
 They prevent a “happy-path only” score from hiding acquisition or extraction
-failures.
+failures. Each report includes a per-case failure class (for example
+`ACQUISITION_FAILURE`, `EXTRACTION_FALSE_POSITIVE`, `RESOLUTION_FAILURE` or
+`PROVIDER_FAILURE`) plus explicit metric denominators. If Google pricing is not
+configured, all total and per-place costs are `null` with
+`pricing_not_configured`—never `$0`.
+
+Resolver ranking is deterministic: exact/contained name identity is the base
+signal; literal city, neighborhood and country matches add confidence, while
+missing locality hints reduce it. Results below the conservative threshold stay
+in `needs_review`; an LLM never supplies an address.
 
 ## Deployment probe
 
 Railway runs only a small HTTP process for M0.2 runtime validation:
 
-- `GET /health` is public and returns service health.
+- `GET /health` is public and returns service health plus the safe boolean
+  `probeConfigured`; it never returns the token.
 - `POST /internal/probes/tiktok` accepts no arbitrary URL and requires a
   Bearer `PROBE_TOKEN`.
 

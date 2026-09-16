@@ -9,7 +9,7 @@
     "decision": "completed",
     "manualStatus": "verified",
     "candidates": [{ "name": "Madre", "category": "FOOD", "city": "São Paulo" }],
-    "places": [{ "name": "Madre Bar", "city": "São Paulo", "provider": "google_places_new" }]
+    "places": [{ "name": "A MADRE", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJ_8AOqI5XzpQRUJVEZEjSLhs" }]
   },
-  "notes": "Manually verified TikTok acceptance case. Add providerPlaceId only after it is checked against the configured Google project; the fixture identifier is intentionally synthetic."
+  "notes": "Manually verified TikTok acceptance case. Provider identity was checked against the configured Google project on 2026-09-16."
 }

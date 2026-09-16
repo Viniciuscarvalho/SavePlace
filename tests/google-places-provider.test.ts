@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlaceCandidate } from "../src/domain/models.js";
-import { GooglePlacesProvider, InMemoryUsageLedger } from "../src/resolution/google-places-provider.js";
+import { confidenceFor, GooglePlacesProvider, InMemoryUsageLedger } from "../src/resolution/google-places-provider.js";
 
 const candidate: PlaceCandidate = {
   rawName: "Madre",
@@ -26,6 +26,11 @@ const googlePlace = {
 };
 
 describe("GooglePlacesProvider", () => {
+  it("ranks deterministic social-handle normalization before geographic verification", () => {
+    expect(confidenceFor({ ...candidate, rawName: "@bar.sororoca", normalizedName: "bar sororoca", neighborhoodHint: "Pinheiros" }, "Sororoca Bar", "Rua dos Pinheiros, São Paulo - SP, Brasil")).toBeGreaterThanOrEqual(0.85);
+    expect(confidenceFor({ ...candidate, rawName: "Mercadão de Pinheiros", cityHint: undefined, neighborhoodHint: undefined, countryHint: undefined }, "Mercado Municipal de Pinheiros", "São Paulo, Brasil")).toBeLessThan(0.85);
+  });
+
   it("uses a minimal Text Search field mask and returns a verified provider match", async () => {
     const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify(googlePlace), { status: 200 }));
     const provider = new GooglePlacesProvider({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });
@@ -43,6 +48,22 @@ describe("GooglePlacesProvider", () => {
       name: "Madre", city: "São Paulo", country: "Brasil", provider: "google_places_new", providerPlaceId: "google-place-id", verified: true,
     })]);
     expect(matches[0]?.resolutionConfidence).toBeGreaterThanOrEqual(0.93);
+  });
+
+  it("uses an address literal adjacent to a social handle only as a provider query hint", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify({ places: [] }), { status: 200 }));
+    const provider = new GooglePlacesProvider({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });
+    const handleCandidate: PlaceCandidate = {
+      ...candidate,
+      rawName: "@bar.sororoca",
+      normalizedName: "bar sororoca",
+      evidence: [{ type: "description", text: "@bar.sororoca Rua Simão Álvares, 785 @other" }],
+    };
+
+    await provider.search(handleCandidate);
+
+    const [, init] = fetchFn.mock.calls[0] ?? [];
+    expect(JSON.parse(init.body as string)).toMatchObject({ textQuery: "bar sororoca, Rua Simão Álvares, 785, São Paulo, Brasil" });
   });
 
   it("fails closed when the provider response does not include a resolvable city and country", async () => {
@@ -68,14 +89,41 @@ describe("GooglePlacesProvider", () => {
     expect(fetchFn).toHaveBeenCalledOnce();
   });
 
-  it("records an optional local cost estimate only for a request that left the process", async () => {
+  it("records configured provider usage only for a request that left the process", async () => {
     const provider = new GooglePlacesProvider({
       apiKey: "test-key",
-      textSearchEstimatedCostUsd: 0.032,
+      pricing: {
+        provider: "google_places_new",
+        operation: "text_search",
+        pricePerUnitUsd: 0.032,
+        source: "billing-contract",
+        effectiveDate: "2026-09-16",
+      },
       fetchFn: vi.fn().mockResolvedValue(new Response(JSON.stringify({ places: [] }), { status: 200 })) as unknown as typeof fetch,
     });
 
-    await expect(provider.searchWithTrace(candidate)).resolves.toEqual({ matches: [], requestCount: 1, estimatedCostUsd: 0.032 });
+    await expect(provider.searchWithTrace(candidate)).resolves.toEqual({
+      matches: [], requestCount: 1, estimatedCostUsd: 0.032,
+      usage: [{
+        provider: "google_places_new", operation: "text_search", requests: 1, billableUnits: 1,
+        estimatedCostUsd: 0.032, costStatus: "estimated", pricingSource: "billing-contract", pricingEffectiveDate: "2026-09-16",
+      }],
+    });
+  });
+
+  it("marks a spent request as unpriced instead of reporting a zero cost", async () => {
+    const provider = new GooglePlacesProvider({
+      apiKey: "test-key",
+      fetchFn: vi.fn().mockResolvedValue(new Response(JSON.stringify({ places: [] }), { status: 200 })) as unknown as typeof fetch,
+    });
+
+    await expect(provider.searchWithTrace(candidate)).resolves.toEqual({
+      matches: [], requestCount: 1,
+      usage: [{
+        provider: "google_places_new", operation: "text_search", requests: 1, billableUnits: 1,
+        estimatedCostUsd: null, costStatus: "pricing_not_configured",
+      }],
+    });
   });
 
   it.each([

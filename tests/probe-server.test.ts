@@ -36,14 +36,14 @@ const acquiredResult: AnalysisResult = {
 describe("Railway probe server", () => {
   it("serves an unauthenticated healthcheck", async () => {
     const baseUrl = await startServer({ execute: vi.fn() });
-    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok" });
+    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: true });
   });
 
   it("keeps health available but fails closed when its token is missing", async () => {
     const execute = vi.fn();
     const baseUrl = await startServer({ execute }, {});
 
-    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok" });
+    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: false });
 
     const response = await fetch(`${baseUrl}/internal/probes/tiktok`, {
       method: "POST",

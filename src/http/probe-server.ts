@@ -54,11 +54,12 @@ function toProbeResponse(result: AnalysisResult): ProbeResponse {
  * It accepts no source URL, so it cannot become an unauthenticated fetch proxy.
  */
 export function createProbeServer(options: ProbeServerOptions): Server {
+  const probeToken = options.probeToken?.trim() || undefined;
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
 
     if (request.method === "GET" && url.pathname === "/health") {
-      writeJson(response, 200, { status: "ok" });
+      writeJson(response, 200, { status: "ok", probeConfigured: probeToken !== undefined });
       return;
     }
 
@@ -72,7 +73,6 @@ export function createProbeServer(options: ProbeServerOptions): Server {
       return;
     }
 
-    const probeToken = options.probeToken?.trim();
     if (!probeToken) {
       writeJson(response, 503, { error: "probe_unavailable" });
       return;
