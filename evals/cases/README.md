@@ -11,6 +11,11 @@ record its stable `provider` and `providerPlaceId` after confirming the result
 in the configured PlaceProvider project. Keep ambiguous links as `pending` so
 they exercise acquisition and review handling without inflating quality.
 
+When ground truth identifies a place but the correct M0 outcome is still
+`needs_review`, set that place's `resolutionExpected` to `false`. It remains
+visible as manual ground truth but is not counted as a failed verified-place
+resolution target.
+
 Run `npm run eval:m0` for deterministic fixture validation. Run the paid live
 evaluation only with explicit environment configuration, and let its ignored
 output in `evals/results/` be the report artifact. The M0 gate requires 10–15

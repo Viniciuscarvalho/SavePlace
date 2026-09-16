@@ -13,6 +13,8 @@ export const ExpectedCandidateSchema = z.object({
 export const ExpectedPlaceSchema = ExpectedCandidateSchema.extend({
   provider: z.string().min(1).optional(),
   providerPlaceId: z.string().min(1).optional(),
+  /** False when the ground truth is known but M0 should deliberately retain review. */
+  resolutionExpected: z.boolean().default(true),
 });
 
 export const EvaluationCaseSchema = z.object({
@@ -50,6 +52,16 @@ const ProcessingSchema = z.object({
     requestCount: z.number().int().nonnegative(),
     estimatedCostUsd: z.number().nonnegative().optional(),
     unpricedRequestCount: z.number().int().nonnegative(),
+    usage: z.array(z.object({
+      provider: z.string().min(1),
+      operation: z.string().min(1),
+      requests: z.number().int().nonnegative(),
+      billableUnits: z.number().int().nonnegative(),
+      estimatedCostUsd: z.number().nonnegative().nullable(),
+      costStatus: z.enum(["estimated", "pricing_not_configured"]),
+      pricingSource: z.string().min(1).optional(),
+      pricingEffectiveDate: z.string().min(1).optional(),
+    })).optional(),
   }).optional(),
 });
 

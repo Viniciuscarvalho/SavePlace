@@ -28,9 +28,10 @@ const analyzer = new AnalyzeSource(
 // its secret is present.
 const server = createProbeServer({ analyzer, probeToken: optionalEnvironment("PROBE_TOKEN") });
 const port = portFromEnvironment();
+const probeConfigured = optionalEnvironment("PROBE_TOKEN") !== undefined;
 
 server.listen(port, "0.0.0.0", () => {
-  console.log(`SavePlace Railway probe listening on port ${port}.`);
+  console.log(`SavePlace Railway probe listening on port ${port}. PROBE_TOKEN configured: ${probeConfigured ? "yes" : "no"}.`);
 });
 
 function shutdown(): void {
