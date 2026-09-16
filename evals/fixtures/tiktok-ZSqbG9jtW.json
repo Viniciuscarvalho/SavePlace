@@ -1,0 +1,36 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "needs_review",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSqbG9jtW/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@marcelamorgon/video/7029401831272877318",
+      "contentId": "7029401831272877318"
+    },
+    "evidence": [{ "type": "description", "text": "AchadosElo fica no Mercadão de Pinheiros." }],
+    "candidates": [{
+      "rawName": "Mercadão de Pinheiros",
+      "category": "FOOD",
+      "extractionConfidence": 0.65,
+      "evidence": [{ "type": "description", "text": "AchadosElo fica no Mercadão de Pinheiros." }]
+    }],
+    "places": [],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 5801,
+      "extraction": {
+        "status": "completed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 3732,
+        "inputTokens": 367,
+        "outputTokens": 137,
+        "estimatedCostUsd": 0.0002378
+      },
+      "resolution": { "provider": "google_places_new", "requestCount": 1, "unpricedRequestCount": 1 }
+    },
+    "nextAction": "review"
+  }
+}

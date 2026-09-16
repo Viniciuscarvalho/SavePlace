@@ -1,0 +1,12 @@
+{
+  "acquisition": "insufficient_evidence",
+  "analysis": {
+    "status": "insufficient_evidence",
+    "source": { "input": "https://vt.tiktok.com/ZSqbGLqHq/", "platform": "tiktok" },
+    "evidence": [],
+    "candidates": [],
+    "places": [],
+    "processing": { "extractionMethod": "none", "durationMs": 581 },
+    "reason": "TikTok oEmbed returned HTTP 400."
+  }
+}

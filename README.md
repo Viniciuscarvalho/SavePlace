@@ -1,496 +1,152 @@
 <p align="center">
-  <img src="docs/assets/saveplace-logo.svg" alt="SavePlace" width="520" />
+  <img src="docs/assets/saveplace-logo.svg" alt="SavePlace" width="420" />
 </p>
 
-<p align="center">
-  <strong>Turn social videos into places worth visiting.</strong><br/>
-  An open-source AI ingestion and entity-resolution system that transforms unstructured social-media URLs into verified, structured geographic data.
-</p>
+# SavePlace
 
-<p align="center">
-  <code>AI Engineering</code> · <code>FDE</code> · <code>LLM</code> · <code>Entity Resolution</code> · <code>Structured Outputs</code> · <code>Evals</code> · <code>Observability</code>
-</p>
+SavePlace is an open-source TypeScript spike for turning a public social URL
+into conservative, provider-verified place data. It is an AI-engineering
+portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Project status:** early AI spike (M0). TikTok is the first validation target, Instagram follows, and YouTube is intentionally deferred. The repository is being built in public as an AI Engineering / Forward Deployed Engineering portfolio project.
+> **Current stage: M0 validation.** This repository is a CLI plus a narrow
+> Railway diagnostic probe. It is not a WebApp or a public product API.
 
-## The problem
-
-Great restaurants, cafés, hotels, beaches, museums and experiences are discovered every day through short-form social content. The information is useful, but the medium is not designed to become a structured travel or food library.
-
-A typical flow today looks like this:
-
-```mermaid
-flowchart LR
-    A[Discover a place<br/>on social media] --> B[Save the video]
-    B --> C[Forget where it was saved]
-    C --> D[Search manually later]
-    D --> E[Find the name]
-    E --> F[Find the address]
-    F --> G[Open Maps]
-```
-
-SavePlace turns that fragmented workflow into a single operation: **paste or share the URL and receive trustworthy place data**.
-
-## What SavePlace does
-
-The product receives a public social-media URL, acquires the cheapest legitimate evidence available from that source, uses an LLM to identify possible places, validates those candidates against an external place provider, and returns structured results.
-
-```mermaid
-flowchart LR
-    U[Social URL] --> P[Platform Adapter]
-    P --> E[Evidence Acquisition]
-    E --> L[LLM Place Extraction]
-    L --> C[Place Candidates]
-    C --> R[Place Resolution]
-    R --> V{Verified?}
-    V -->|Yes| S[Structured Place]
-    V -->|No| H[Needs Review]
-```
-
-The key design rule is intentionally strict:
-
-> **The LLM may identify a place. It may never be the source of truth for an address.**
-
-Addresses, coordinates and canonical place identities must be validated by a place-resolution provider before SavePlace treats them as verified data.
-
-## Example
-
-A user pastes a TikTok or Instagram URL. SavePlace should eventually return something equivalent to:
-
-```json
-{
-  "name": "Tan Tan",
-  "category": "FOOD",
-  "subcategory": "Japanese",
-  "address": "Rua Fradique Coutinho, São Paulo",
-  "city": "São Paulo",
-  "country": "Brazil",
-  "latitude": -23.0,
-  "longitude": -46.0,
-  "providerPlaceId": "provider-id",
-  "extractionConfidence": 0.96,
-  "resolutionConfidence": 0.99,
-  "verified": true
-}
-```
-
-The values above illustrate the output contract, not a production result.
-
-## Why this is an AI Engineering / FDE project
-
-SavePlace is deliberately more than an LLM wrapper. The interesting engineering problem is connecting an unreliable, unstructured external world to a reliable product contract.
-
-```mermaid
-flowchart TB
-    subgraph External[Unstructured external systems]
-        TT[TikTok]
-        IG[Instagram]
-        YT[YouTube - later]
-        WEB[Web content]
-    end
-
-    subgraph Engine[SavePlace Processing Engine]
-        DET[Platform Detection]
-        ADP[Provider Adapters]
-        EV[Evidence Collector]
-        ROUTER[Evidence / Model Router]
-        LLM[LLM Structured Extraction]
-        SCORE[Confidence Scoring]
-        RES[Entity Resolution]
-        OBS[Tracing + Cost + Quality Metrics]
-    end
-
-    subgraph Providers[Ground-truth providers]
-        MAPS[Place Provider]
-    end
-
-    subgraph Product[Product surfaces]
-        API[SavePlace API]
-        WEBAPP[WebApp]
-        SHARE[iOS Share Extension - future]
-    end
-
-    TT --> DET
-    IG --> DET
-    YT --> DET
-    WEB --> DET
-    DET --> ADP --> EV --> ROUTER --> LLM --> SCORE --> RES
-    RES <--> MAPS
-    RES --> API --> WEBAPP
-    API --> SHARE
-    EV -. telemetry .-> OBS
-    LLM -. telemetry .-> OBS
-    RES -. telemetry .-> OBS
-```
-
-This makes the project a practical playground for the skills expected from Forward Deployed and AI Engineers: external-system integration, ambiguous data, structured outputs, model routing, deterministic validation, human-in-the-loop workflows, evals, observability, reliability and cost-aware inference.
-
-## Where the LLM belongs
-
-The model is used for **semantic interpretation**, not for facts that can be verified deterministically.
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant API as SavePlace
-    participant Source as Platform Adapter
-    participant LLM as LLM
-    participant Places as Place Provider
-
-    User->>API: Social video URL
-    API->>Source: Acquire URL evidence
-    Source-->>API: caption / metadata / thumbnail / hints
-    API->>LLM: Extract PlaceCandidate[]
-    LLM-->>API: names + location hints + categories + evidence
-    loop Every candidate
-        API->>Places: Resolve candidate
-        Places-->>API: canonical place + address + coordinates
-    end
-    API-->>User: Verified places or Needs Review
-```
-
-A future progressive inference strategy will prefer cheap evidence first and only escalate when the expected quality gain justifies additional latency or cost.
-
-## URL-only by design
-
-SavePlace does **not** require users to upload social videos. The URL is the product input.
-
-The evidence pipeline is designed to progress approximately as follows:
-
-```mermaid
-flowchart TD
-    A[Public social URL] --> B[Canonical identity]
-    B --> C[Metadata / caption / description]
-    C --> D{Enough evidence?}
-    D -->|Yes| X[Place extraction]
-    D -->|No| E[Structured page evidence]
-    E --> F{Enough evidence?}
-    F -->|Yes| X
-    F -->|No| G[Accessible transcript or visual evidence<br/>when compliant and available]
-    G --> X
-```
-
-If the available evidence cannot support a reliable candidate, the correct result is `insufficient_evidence` — not a hallucinated place and not a request to upload the video.
-
-## WebApp — MVP concept
-
-The first product surface is intentionally small. It exists to validate the processing engine rather than hide it behind a large product build.
-
-### 1. URL input
+## What it proves
 
 ```text
-┌──────────────────────────────────────────────────────────────────────┐
-│  ◈ SavePlace                                             GitHub  ●  │
-│                                                                      │
-│                                                                      │
-│                 Turn social videos into                             │
-│                   places worth visiting                             │
-│                                                                      │
-│       Paste a TikTok or Instagram URL and let SavePlace             │
-│       identify and verify the places mentioned in the video.        │
-│                                                                      │
-│   ┌──────────────────────────────────────────────────────────────┐   │
-│   │ https://vt.tiktok.com/...                      Find Places → │   │
-│   └──────────────────────────────────────────────────────────────┘   │
-│                                                                      │
-│                     TikTok  ·  Instagram                             │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
+Public TikTok URL
+  -> official oEmbed metadata
+  -> evidence-bound LLM candidates
+  -> external PlaceProvider verification
+  -> typed result or needs_review
 ```
 
-### 2. Processing
+- The LLM can suggest candidates, but never verifies addresses or coordinates.
+- A `PlaceProvider` is the only component allowed to return `verified: true`.
+- Generic cities and neighborhoods are location hints, not resolvable venues.
+- Unsupported or insufficient sources fail safely; SavePlace never downloads
+  protected social media as a hidden dependency.
 
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│  ◈ SavePlace                                                        │
-│                                                                      │
-│                       Finding places...                              │
-│                                                                      │
-│             ✓ Source identified         TikTok                      │
-│             ✓ Evidence acquired                                     │
-│             ◌ Extracting place candidates                           │
-│             ○ Verifying locations                                   │
-│                                                                      │
-│             We verify addresses outside the LLM.                    │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
+## Current capability and limits
 
-### 3. Result
-
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│  ◈ SavePlace                                         ✓ 1 place      │
-│                                                                      │
-│   ┌──────────────────────────────────────────────────────────────┐   │
-│   │  Restaurant Name                              Verified ✓     │   │
-│   │  Restaurant · Japanese                                      │   │
-│   │  Pinheiros, São Paulo                                       │   │
-│   │                                                              │   │
-│   │  Extraction 94%            Resolution 99%                   │   │
-│   │                                                              │   │
-│   │  [ View on Maps ]                         [ Save Place ]     │   │
-│   └──────────────────────────────────────────────────────────────┘   │
-│                                                                      │
-│   Source: TikTok · View original                                    │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-These are product-direction wireframes, not implemented screens yet.
-
-## Processing contract
-
-The core pipeline is designed around explicit states rather than opaque AI success/failure.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Queued
-    Queued --> AcquiringEvidence
-    AcquiringEvidence --> Extracting
-    AcquiringEvidence --> InsufficientEvidence
-    Extracting --> Resolving
-    Extracting --> InsufficientEvidence
-    Resolving --> Completed
-    Resolving --> NeedsReview
-    AcquiringEvidence --> Failed
-    Extracting --> Failed
-    Resolving --> Failed
-```
-
-This distinction is important operationally. `insufficient_evidence` is a valid product outcome; `failed` means the system itself failed.
-
-## Architecture principles
-
-1. **Precision first.** A confidently wrong place is worse than no result.
-2. **Cost second.** Use progressive evidence acquisition and avoid expensive inference when cheaper signals are enough.
-3. **Latency third.** Several seconds are acceptable for a save/curation workflow if they buy meaningful quality.
-4. **LLMs extract candidates; providers establish geographic truth.**
-5. **URL-only ingestion.** No user media upload is required by the product architecture.
-6. **Provider boundaries.** Platform, LLM and place providers must remain replaceable.
-7. **Observable AI.** Model, prompt version, evidence, tokens, cost, latency and confidence should be measurable.
-8. **Evals before scale.** Changes to prompts, models or evidence strategies should be evaluated against a golden dataset.
-
-## Current architecture
-
-The project intentionally begins as a modular monolith.
-
-```text
-src/
-├── domain/          # stable contracts
-├── ingestion/       # platform-specific evidence acquisition
-├── extraction/      # structured PlaceCandidate extraction
-├── resolution/      # provider-backed place verification
-├── pipeline/        # orchestration
-├── cli/             # M0 developer interface
-└── server.ts        # deployment probe
-
-evals/               # real-world golden cases
-tests/               # deterministic + explicit integration tests
-docs/                # engineering notes and project assets
-```
-
-No microservices, Kafka, Kubernetes or unnecessary infrastructure are required to prove the product hypothesis.
-
-## Deployment strategy
-
-The first deployment target is a small persistent Node.js service on Railway. The objective is to validate platform acquisition from a real runtime before introducing the full WebApp.
-
-```mermaid
-flowchart LR
-    GH[GitHub] --> R[Railway<br/>M0.2 diagnostic probe]
-    R -. fixed authenticated probe .-> T[TikTok oEmbed]
-    CLI[M0 CLI / local runner] --> T
-    CLI --> AI[LLM - M0.3]
-    CLI --> P[Place Provider - M0.4]
-    API[M1 processing service] --> DB[(PostgreSQL / Supabase)]
-    W[WebApp - M2] --> API
-```
-
-The early goal is to keep infrastructure small and inexpensive. Cost growth should primarily come from successful product usage, not idle architecture.
-
-## AI quality and evals
-
-SavePlace treats evaluation as a product capability rather than a final testing phase.
-
-The initial golden dataset will grow from 10–15 real public URLs toward a broader set covering restaurants, cafés, hotels, beaches, attractions, multi-place posts and ambiguous examples.
-
-Key quality metrics:
-
-| Metric | Why it matters |
+| Area | State |
 | --- | --- |
-| Place extraction precision | Did the model identify real places rather than plausible names? |
-| Place resolution accuracy | Did the candidate map to the correct real-world entity? |
-| Verified address accuracy | Are persisted addresses trustworthy? |
-| Category accuracy | Is the place classified correctly? |
-| False-positive rate | How often does SavePlace confidently return the wrong place? |
-| Manual correction rate | How often does a user need to repair the result? |
-| Cost per verified place | What does useful AI output actually cost? |
-| P50 / P95 processing time | What experience does the user receive? |
+| TikTok URL acquisition | Official oEmbed adapter; live runtime probe still needs a healthy token configuration. |
+| Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
+| Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
+| Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. The quality gate is currently red. |
+| Persistence / cache / saved list | M1, not implemented. |
+| WebApp | M2, not implemented. |
 
-The target is not “100% of URLs work.” The target is: **when SavePlace says it knows the place, it should be right.**
+Fixtures validate the runner contract and regressions; the live run measures
+current provider and model quality. Neither is a production-quality claim.
+Run the commands below to generate the local report.
 
-## Roadmap
-
-```mermaid
-gantt
-    title SavePlace — validation roadmap
-    dateFormat  YYYY-MM-DD
-    axisFormat  %b %d
-    section M0
-    URL evidence acquisition — TikTok :active, m02, 2026-09-01, 20d
-    Structured LLM extraction         :m03, after m02, 10d
-    Place resolution                  :m04, after m03, 10d
-    Golden dataset + eval runner      :m05, after m04, 14d
-    Instagram adapter                 :ig, after m05, 10d
-    section M1
-    Processing engine + persistence   :m1a, after ig, 20d
-    section M2
-    WebApp MVP                        :m2, after m1a, 20d
-```
-
-Dates express sequencing, not release commitments.
-
-### Milestones
-
-- **M0.2 — URL Evidence Acquisition:** make at least one TikTok URL reliably produce attributable evidence from the deployed runtime.
-- **M0.3 — Structured Extraction:** transform evidence into validated `PlaceCandidate[]` structured output.
-- **M0.4 — Place Resolution:** resolve candidates through an external geographic provider; never trust an LLM-generated address as truth.
-- **M0.5 — Evals:** benchmark 10–15 real public URLs before broadening the architecture.
-- **Instagram:** implement the second platform adapter and compare acquisition reliability.
-- **M1 — Processing Engine:** persistence, tracing, prompt/model versioning, cost accounting and asynchronous processing.
-- **M2 — WebApp:** URL input, processing visibility and verified result cards.
-- **Later:** iOS Share Extension, library, maps, visited/want-to-go state and multi-user productization.
-
-## Current status
-
-| Capability | Status |
-| --- | --- |
-| Domain contracts | 🟢 In progress |
-| URL-only architecture | 🟢 Defined |
-| TikTok adapter | 🟡 Validation in progress |
-| Railway runtime probe | 🟡 Validation in progress |
-| LLM structured extraction | 🟡 Implemented; live validation is local-only |
-| Place resolution | 🟡 Implemented; live validation is local-only |
-| Golden eval harness | 🟡 Implemented; corpus gate pending |
-| Instagram adapter | ⚪ Planned |
-| WebApp | ⚪ Planned — M2 |
-| iOS Share Extension | ⚪ Future |
-
-## Tech stack
-
-**Current:** TypeScript, Node.js, Zod, Vitest, Railway.
-
-**Planned / provider-backed:** LLM structured outputs, external Places API, PostgreSQL/Supabase, WebApp frontend, tracing/observability and an iOS Share Extension.
-
-Provider choices remain intentionally abstract where validation is not complete. The architecture should not become coupled to a model or API before its value is demonstrated.
-
-## Local development
+## Quick start
 
 ```bash
 npm install
+cp .env.example .env
 npm run typecheck
 npm test
 ```
 
-Analyze a supported URL through the current M0 CLI:
+Analyze a TikTok URL. Without provider keys this still exercises acquisition
+and returns no LLM or Google guesses.
 
 ```bash
 npm run analyze -- "https://vt.tiktok.com/..."
 ```
 
-Explicit network/provider tests are kept separate from the deterministic test suite because third-party content and availability can change.
+## Configuration
 
-## Current M0 validation
+Copy `.env.example` to an ignored `.env`; never commit provider keys or tokens.
 
-### M0.2 — TikTok acquisition and Railway probe
+| Variable | Used by | Required |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Structured extraction and live evaluation | Only for LLM runs |
+| `GOOGLE_MAPS_API_KEY` | Google Place verification | Only for resolution/live evaluation |
+| `GOOGLE_PLACES_TEXT_SEARCH_ESTIMATED_COST_USD` | Local evaluation cost estimate | Optional; leave blank when unknown |
+| `PROBE_TOKEN` | Railway diagnostic probe | Required only for the remote probe |
+| `SAVEPLACE_PROBE_URL` | Railway smoke CLI | Required only for smoke testing |
 
-TikTok short URLs are sent directly to TikTok's official oEmbed endpoint; SavePlace never follows the user-controlled redirect or downloads media. The Railway HTTP process is only a narrow deployment diagnostic, not a product API.
+`PROBE_TOKEN` must be a non-empty service variable in the same Railway
+deployment environment as the running container. A local `.env` does not
+configure Railway.
 
-`GET /health` is always available for Railway's healthcheck. `POST /internal/probes/tiktok` remains disabled with `503` until `PROBE_TOKEN` is configured, and it accepts neither arbitrary URLs nor unauthenticated requests.
+## Commands
 
-After setting `PROBE_TOKEN` as a **service variable** in the Railway deployment environment and redeploying, run from a trusted terminal:
+| Command | Purpose |
+| --- | --- |
+| `npm run typecheck` | TypeScript validation |
+| `npm test` | Deterministic unit tests; provider integrations stay skipped |
+| `npm run build` | Compile the Railway process |
+| `npm run analyze -- <url>` | Run the local pipeline |
+| `npm run test:integration:tiktok` | Opt-in live TikTok contract test |
+| `npm run test:integration:google-places` | Opt-in Google contract test |
+| `npm run test:railway:smoke` | Authenticated fixed-URL Railway egress probe |
+| `npm run eval:m0` | Deterministic M0.5 fixtures; writes ignored local output |
+| `npm run eval:m0:live` | Paid live evaluation; requires exported provider keys |
+| `npm run eval:m0:gate` | Live quality gate; exits non-zero until all criteria pass |
 
-```bash
-SAVEPLACE_PROBE_URL="https://your-service.up.railway.app" \
-PROBE_TOKEN="your-secret" \
-npm run test:railway:smoke
-```
-
-### M0.3 — Structured LLM extraction
-
-`OpenAIPlaceExtractor` uses the Responses API with strict JSON Schema output. The prompt receives only eligible textual evidence, each candidate points back to acquired evidence, and any model-invented name or hint is discarded. The analysis trace records provider, model, prompt version, latency, tokens and estimated cost. Without `OPENAI_API_KEY`, the CLI returns no candidates and a trace of `unavailable`; it does not make a network call. For TikTok M0.2 today, that eligible input is the oEmbed description; title, page metadata and transcript are reserved for future adapters that legitimately expose them.
-
-### M0.4 — Google place verification
-
-`GooglePlacesProvider` is the first real, replaceable `PlaceProvider`. It verifies candidates through Google Places API (New) with a minimal field mask and returns a place only when the provider supplies name, city, country and coordinates. The default M0 guard permits 500 Text Search calls per UTC month per process and fails closed after that point.
-
-When resolution makes a provider request, `processing.resolution` records its
-provider name, `requestCount`, and `unpricedRequestCount`. It includes
-`estimatedCostUsd` only when the local runner was given an explicit estimate;
-that estimate is absent when billing is unknown. No resolution trace is emitted
-when the pipeline made no provider request.
-
-The live contract is opt-in and requires a restricted key; it is excluded from `npm test`:
-
-```bash
-GOOGLE_MAPS_API_KEY="your-restricted-key" \
-npm run test:integration:google-places
-```
-
-Provider response content is not persisted in M0. Cache, idempotency and durable provider-data boundaries remain private planning material until the M1 implementation is ready to be published.
-
-### M0.5 — evaluation harness
-
-`npm run eval:m0` runs the committed fixture corpus without credentials or
-network calls, writes a local report to `evals/results/m0-fixtures.json`, and
-reports acquisition, candidate precision/recall, resolution accuracy where a
-manually verified provider ID is available, false positives, needs-review rate,
-latency percentiles, tokens, and estimated costs. `evals/results/` is ignored
-because it contains local timestamps and provider-cost observations.
+For `.env` loading on Node 22, invoke an opt-in command explicitly:
 
 ```bash
-npm run eval:m0
-
-# Explicitly opt in to TikTok, OpenAI and Google requests.
 RUN_M0_EVAL_LIVE=1 \
-OPENAI_API_KEY="your-key" \
-GOOGLE_MAPS_API_KEY="your-key" \
-GOOGLE_PLACES_TEXT_SEARCH_ESTIMATED_COST_USD="your-project-estimate" \
-npm run eval:m0:live
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live --gate
 ```
 
-The optional Google estimate is a local gross-cost input, not billing truth.
-Leave it blank when the active billing price is unknown; the report will mark
-those provider calls as unpriced instead of treating them as free.
+## Evaluation and safety gates
 
-The committed corpus currently proves the runner format only. The M0 quality
-gate stays red until it has at least 10 public TikTok cases, at least 10
-manually verified cases, one manually verified provider/place ID, and no
-unpriced provider request. `npm run eval:m0:gate` is intentionally live and
-fails closed without the two provider keys; use it only in a trusted terminal
-after reviewing its costs.
+Cases live under `evals/cases/`; deterministic responses live in
+`evals/fixtures/`; timestamps and local cost reports are ignored under
+`evals/results/`. See [the case guide](evals/cases/README.md) before adding a
+URL.
 
-## Repository philosophy
+The M0 gate requires:
 
-This repository is developed in public to document not only the final implementation, but the engineering decisions behind it: what failed, what evidence was available, why a provider was chosen, where deterministic validation replaces AI, and how quality/cost trade-offs evolve.
+- at least 10 public TikTok URLs with manual expected results;
+- known provider/place IDs where a place is expected;
+- an explicit local estimate for each paid PlaceProvider request;
+- at least 90% candidate precision and 95% provider-ID resolution accuracy;
+- a healthy Railway smoke probe for the acceptance URL, validated separately
+  from `eval:m0:gate`.
 
-That is intentional. Real AI engineering is not only about selecting a model; it is about building a reliable system around uncertain models and external systems.
+The corpus intentionally includes unavailable, ambiguous and multi-place posts.
+They prevent a “happy-path only” score from hiding acquisition or extraction
+failures.
+
+## Deployment probe
+
+Railway runs only a small HTTP process for M0.2 runtime validation:
+
+- `GET /health` is public and returns service health.
+- `POST /internal/probes/tiktok` accepts no arbitrary URL and requires a
+  Bearer `PROBE_TOKEN`.
+
+It is not the future product API. A `503 probe_unavailable` means the deployed
+process cannot read its token; save the variable in the active service
+environment and redeploy before rerunning the smoke command.
+
+## Roadmap
+
+1. **Finish M0:** improve candidate precision and multi-place extraction, make
+   the Railway smoke green, and rerun the live quality gate.
+2. **M1 processing engine:** PostgreSQL/Supabase persistence, source cache and
+   idempotency, explicit save confirmation, jobs, shared usage ledger and
+   tracing.
+3. **M2 WebApp:** URL input, processing state and a personal verified-place
+   library.
+4. **Later:** Instagram adapter and iOS share flow.
 
 ## Contributing
 
-SavePlace is open source and currently experimental. Issues, architecture discussions, provider experiments, eval cases and implementation contributions are welcome as the core pipeline stabilizes.
-
-Please avoid committing API keys, authentication tokens, copyrighted media, or private social content. Test cases should use public URLs and store only the minimum evidence required by the eval.
+Contributions are welcome once they preserve the evidence-first contract. Do
+not commit credentials, downloaded media, private content, provider responses,
+or generated evaluation results. Test cases must use public URLs and only the
+minimum manually reviewed ground truth.
 
 ## License
 
-A license has not yet been finalized. Before accepting external contributions, the project should adopt an explicit open-source license (for example Apache-2.0 or MIT) and add it as `LICENSE`.
-
----
-
-<p align="center">
-  <strong>SavePlace</strong><br/>
-  See it. Save it. Visit it.<br/><br/>
-  Built as an open-source exploration of reliable AI systems, entity resolution and real-world FDE engineering.
-</p>
+No license has been selected yet. Add one before accepting broad external
+contributions.

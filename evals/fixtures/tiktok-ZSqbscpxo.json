@@ -1,0 +1,51 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "needs_review",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSqbscpxo/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@indica.sp/video/7630611966687464725",
+      "contentId": "7630611966687464725"
+    },
+    "evidence": [{ "type": "description", "text": "Broto Pizza em Pinheiros, São Paulo." }],
+    "candidates": [
+      { "rawName": "Broto Pizza", "category": "FOOD", "cityHint": "São Paulo", "neighborhoodHint": "Pinheiros", "extractionConfidence": 0.85, "evidence": [{ "type": "description", "text": "Broto Pizza em Pinheiros, São Paulo." }] },
+      { "rawName": "Pinheiros", "category": "OTHER", "cityHint": "São Paulo", "extractionConfidence": 0.75, "evidence": [{ "type": "description", "text": "Broto Pizza em Pinheiros, São Paulo." }] },
+      { "rawName": "São Paulo", "category": "TRAVEL", "extractionConfidence": 0.65, "evidence": [{ "type": "description", "text": "Broto Pizza em Pinheiros, São Paulo." }] }
+    ],
+    "places": [{
+      "name": "Broto Pizza",
+      "normalizedName": "broto pizza",
+      "category": "FOOD",
+      "address": "R. João Moura, 591 - Pinheiros, São Paulo - SP, 05412-001, Brasil",
+      "city": "São Paulo",
+      "state": "São Paulo",
+      "country": "Brasil",
+      "latitude": -23.5602546,
+      "longitude": -46.6780069,
+      "provider": "google_places_new",
+      "providerPlaceId": "ChIJZS8bQvNXzpQRZ6S2bB3tmL4",
+      "extractionConfidence": 0.85,
+      "resolutionConfidence": 0.96,
+      "overallConfidence": 0.9033271833,
+      "verified": true
+    }],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 9586,
+      "extraction": {
+        "status": "completed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 7840,
+        "inputTokens": 652,
+        "outputTokens": 475,
+        "estimatedCostUsd": 0.0007004
+      },
+      "resolution": { "provider": "google_places_new", "requestCount": 3, "unpricedRequestCount": 3 }
+    },
+    "nextAction": "review"
+  }
+}

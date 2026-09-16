@@ -1,0 +1,15 @@
+{
+  "id": "tiktok-ZSqbG9jtW",
+  "input": "https://vt.tiktok.com/ZSqbG9jtW/",
+  "platform": "tiktok",
+  "live": true,
+  "fixture": "tiktok-ZSqbG9jtW.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "needs_review",
+    "manualStatus": "verified",
+    "candidates": [{ "name": "Mercadão de Pinheiros", "category": "FOOD", "city": "São Paulo" }],
+    "places": [{ "name": "Mercado Municipal de Pinheiros", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJcf4EqKFXzpQR2f8O708g8zY" }]
+  },
+  "notes": "The official caption explicitly references Mercadão de Pinheiros. The provider identity was manually checked on 2026-09-16; low name-match confidence remains an expected review outcome."
+}

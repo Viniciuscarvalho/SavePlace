@@ -1,0 +1,15 @@
+{
+  "id": "tiktok-ZSqbGLqHq",
+  "input": "https://vt.tiktok.com/ZSqbGLqHq/",
+  "platform": "tiktok",
+  "live": true,
+  "fixture": "tiktok-ZSqbGLqHq.json",
+  "expected": {
+    "acquisition": "insufficient_evidence",
+    "decision": "insufficient_evidence",
+    "manualStatus": "verified",
+    "candidates": [],
+    "places": []
+  },
+  "notes": "Negative acquisition control manually checked on 2026-09-16: TikTok official oEmbed returned HTTP 400 for this short URL."
+}

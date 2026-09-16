@@ -1,0 +1,31 @@
+{
+  "acquisition": "acquired",
+  "analysis": {
+    "status": "needs_review",
+    "source": {
+      "input": "https://vt.tiktok.com/ZSqbGMNsP/",
+      "platform": "tiktok",
+      "canonicalUrl": "https://www.tiktok.com/@jesss.brasil/video/7439838148949052727",
+      "contentId": "7439838148949052727"
+    },
+    "evidence": [{ "type": "description", "text": "Bar Sororoca, Motique Restaurante, Casa Tavares e Crime Pastry Shop em Pinheiros." }],
+    "candidates": [],
+    "places": [],
+    "processing": {
+      "extractionMethod": "url_metadata",
+      "durationMs": 10627,
+      "extraction": {
+        "status": "failed",
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "promptVersion": "m0.3-url-evidence-v1",
+        "durationMs": 10007,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      }
+    },
+    "reason": "The extraction provider could not produce a valid candidate set.",
+    "nextAction": "review"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "tiktok-ZSqbG55nw",
+  "input": "https://vt.tiktok.com/ZSqbG55nw/",
+  "platform": "tiktok",
+  "live": true,
+  "fixture": "tiktok-ZSqbG55nw.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "completed",
+    "manualStatus": "verified",
+    "candidates": [{ "name": "Bodega Pepito", "category": "FOOD", "city": "São Paulo" }],
+    "places": [{ "name": "Bodega Pepito", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJW45YC3tXzpQRyYTdsEIA_9c" }]
+  },
+  "notes": "The official caption names Bodega Pepito in Pinheiros. Place identity was manually checked against the configured PlaceProvider on 2026-09-16."
+}

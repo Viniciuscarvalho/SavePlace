@@ -5,25 +5,31 @@
     "source": {
       "input": "https://vt.tiktok.com/ZSq4DkXGA/",
       "platform": "tiktok",
-      "canonicalUrl": "https://www.tiktok.com/@creator/video/1",
-      "contentId": "1"
+      "canonicalUrl": "https://www.tiktok.com/@millenebutslof/video/7675924917199654152",
+      "contentId": "7675924917199654152"
     },
-    "evidence": [{ "type": "description", "text": "Cabana em Cunha." }],
-    "candidates": [],
+    "evidence": [{ "type": "description", "text": "Cabana localizada à beira de um lago, em Cunha/SP." }],
+    "candidates": [{
+      "rawName": "cunha/ sp",
+      "category": "TRAVEL",
+      "extractionConfidence": 0.65,
+      "evidence": [{ "type": "description", "text": "Cabana localizada à beira de um lago, em Cunha/SP." }]
+    }],
     "places": [],
     "processing": {
       "extractionMethod": "url_metadata",
-      "durationMs": 4200,
+      "durationMs": 6294,
       "extraction": {
         "status": "completed",
         "provider": "openai",
         "model": "gpt-5.6-luna",
         "promptVersion": "m0.3-url-evidence-v1",
-        "durationMs": 3900,
-        "inputTokens": 300,
-        "outputTokens": 20,
-        "estimatedCostUsd": 0.000084
-      }
+        "durationMs": 4486,
+        "inputTokens": 372,
+        "outputTokens": 239,
+        "estimatedCostUsd": 0.0003612
+      },
+      "resolution": { "provider": "google_places_new", "requestCount": 1, "unpricedRequestCount": 1 }
     },
     "nextAction": "review"
   }

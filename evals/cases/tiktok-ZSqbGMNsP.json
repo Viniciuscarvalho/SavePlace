@@ -1,0 +1,25 @@
+{
+  "id": "tiktok-ZSqbGMNsP",
+  "input": "https://vt.tiktok.com/ZSqbGMNsP/",
+  "platform": "tiktok",
+  "live": true,
+  "fixture": "tiktok-ZSqbGMNsP.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "completed",
+    "manualStatus": "verified",
+    "candidates": [
+      { "name": "Bar Sororoca", "category": "FOOD", "city": "São Paulo" },
+      { "name": "Motique Restaurante", "category": "FOOD", "city": "São Paulo" },
+      { "name": "Casa Tavares", "category": "FOOD", "city": "São Paulo" },
+      { "name": "Crime Pastry Shop", "category": "FOOD", "city": "São Paulo" }
+    ],
+    "places": [
+      { "name": "Sororoca Bar", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJ0x3z1CBXzpQR0d8OkVlxihM" },
+      { "name": "Motique | Restaurante em Pinheiros", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJOchfsDtXzpQRXBxMuG-Zyvg" },
+      { "name": "Casa Tavares", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJ_3UVmzJXzpQRy8yHJ0XkQqQ" },
+      { "name": "Crime Pastry Shop", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJZfhsVTRXzpQRpdQmK1du-h8" }
+    ]
+  },
+  "notes": "Multi-place caption manually reviewed on 2026-09-16. This case must expose an extraction timeout or omission rather than silently passing as an empty result."
+}

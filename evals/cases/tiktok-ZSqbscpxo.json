@@ -1,0 +1,15 @@
+{
+  "id": "tiktok-ZSqbscpxo",
+  "input": "https://vt.tiktok.com/ZSqbscpxo/",
+  "platform": "tiktok",
+  "live": true,
+  "fixture": "tiktok-ZSqbscpxo.json",
+  "expected": {
+    "acquisition": "acquired",
+    "decision": "completed",
+    "manualStatus": "verified",
+    "candidates": [{ "name": "Broto Pizza", "category": "FOOD", "city": "São Paulo" }],
+    "places": [{ "name": "Broto Pizza", "city": "São Paulo", "provider": "google_places_new", "providerPlaceId": "ChIJZS8bQvNXzpQRZ6S2bB3tmL4" }]
+  },
+  "notes": "The official caption names Broto Pizza, Pinheiros and São Paulo. Place identity was manually checked against the configured PlaceProvider on 2026-09-16."
+}
