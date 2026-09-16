@@ -70,7 +70,7 @@ describe("AnalyzeSource", () => {
 
     const result = await pipeline.execute(source.input);
 
-    expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 1, unpricedRequestCount: 1 });
+    expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 1, unpricedRequestCount: 1, usage: [] });
   });
 
   it("completes duplicate candidates once they resolve to the same provider identity", async () => {
@@ -84,6 +84,6 @@ describe("AnalyzeSource", () => {
 
     expect(result.status).toBe("completed");
     expect(result.places).toHaveLength(1);
-    expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 2, unpricedRequestCount: 2 });
+    expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 2, unpricedRequestCount: 2, usage: [] });
   });
 });

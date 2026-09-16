@@ -19,8 +19,13 @@ describe("M0.5 evaluation runner", () => {
     expect(report.metrics.endToEndPrecision.value).not.toBeNull();
     expect(report.metrics.resolutionAccuracyByProviderPlaceId.denominator).toBeGreaterThan(0);
     expect(report.metrics.placeProvider.requestCount).toBeGreaterThan(0);
+    expect(report.metrics.placeProvider.estimatedCostUsd).toBeNull();
+    expect(report.metrics.costPerUrlUsd).toBeNull();
     expect(report.metrics.latencyMs.p50).not.toBeNull();
     expect(report.metrics.latencyMs.p95).not.toBeNull();
+    expect(report.cases).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "tiktok-ZSqbGMNsP", failureClasses: expect.arrayContaining(["PROVIDER_FAILURE", "EXTRACTION_FALSE_NEGATIVE"]) }),
+    ]));
     expect(report.gate.ready).toBe(false);
     expect(report.gate.reasons).toContain("requires at least 90% candidate precision on manually verified TikTok cases");
   });

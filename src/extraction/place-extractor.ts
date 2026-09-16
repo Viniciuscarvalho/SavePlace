@@ -41,7 +41,7 @@ export class NoGuessPlaceExtractor implements PlaceExtractor {
 }
 
 const DEFAULT_MODEL = "gpt-5.6-luna";
-const DEFAULT_PROMPT_VERSION = "m0.3-url-evidence-v2";
+const DEFAULT_PROMPT_VERSION = "m0.3-url-evidence-v4";
 const DEFAULT_MAX_CANDIDATES = 5;
 const DEFAULT_INPUT_USD_PER_MILLION_TOKENS = 0.2;
 const DEFAULT_OUTPUT_USD_PER_MILLION_TOKENS = 1.2;
@@ -108,6 +108,13 @@ function optionalLiteral(value: string | null, evidence: Evidence[]): string | u
   return value !== null && appearsInEvidence(value, evidence) ? value : undefined;
 }
 
+/** Normalizes an observed social handle without introducing new words. */
+function normalizedObservedHandle(value: string): string | undefined {
+  if (!value.startsWith("@")) return undefined;
+  const normalized = value.slice(1).replace(/[._-]+/g, " ").replace(/\bofficial\b/gi, "").replace(/\s+/g, " ").trim();
+  return normalized || undefined;
+}
+
 /**
  * The LLM confidence is an input, never the whole score. A candidate can only
  * reach a high confidence when the acquired evidence contains independent,
@@ -133,11 +140,18 @@ function materializeCandidate(candidate: LlmCandidate, sourceEvidence: Evidence[
 
   // Hints are useful to the resolver only if they were literally exposed by
   // the source. The model may classify evidence, but it cannot fabricate it.
-  const normalizedName = optionalLiteral(candidate.normalizedName, evidence);
+  const literalNormalizedName = optionalLiteral(candidate.normalizedName, evidence);
+  const normalizedName = literalNormalizedName?.startsWith("@")
+    ? normalizedObservedHandle(candidate.rawName)
+    : literalNormalizedName ?? normalizedObservedHandle(candidate.rawName);
   const subcategory = optionalLiteral(candidate.subcategory, evidence);
   const cityHint = optionalLiteral(candidate.cityHint, evidence);
   const neighborhoodHint = optionalLiteral(candidate.neighborhoodHint, evidence);
   const countryHint = optionalLiteral(candidate.countryHint, evidence);
+  const candidateName = canonicalText(candidate.rawName).trim();
+  if ([cityHint, neighborhoodHint, countryHint].some((hint) => hint !== undefined && canonicalText(hint).trim() === candidateName)) {
+    return null;
+  }
 
   return {
     rawName: candidate.rawName,
@@ -201,7 +215,7 @@ function promptFor(source: SourceEvidence, promptVersion: string): string {
   return [
     `Prompt version: ${promptVersion}.`,
     "Extract 0 to 5 specifically named venue or attraction candidates from the literal source evidence below.",
-    "A restaurant, bar, cafe, hotel, shop, museum, beach, landmark, or named attraction is a candidate. A city, neighborhood, state, country, or generic area is only a location hint and must use entityKind area; area candidates are discarded.",
+    "A restaurant, bar, cafe, hotel, shop, museum, beach, landmark, or named attraction is a candidate. A city, neighborhood, state, country, or generic area is only a location hint and must use entityKind area; area candidates are discarded even when capitalized.",
     "For a list of named venues, return each distinct venue or attraction (up to five). Do not return a generic area merely because the evidence mentions it.",
     "Do not infer image content, use outside knowledge, or invent names, hints, or evidence.",
     "rawName and every non-null hint must appear literally in its selected evidence. Use null when a field is not explicitly present.",
@@ -336,7 +350,8 @@ export class OpenAIPlaceExtractor implements AuditablePlaceExtractor {
 
       const candidates = parsedCandidates.data.candidates
         .map((candidate) => materializeCandidate(candidate, source.evidence))
-        .filter((candidate): candidate is PlaceCandidate => candidate !== null);
+        .filter((candidate): candidate is PlaceCandidate => candidate !== null)
+        .filter((candidate, index, all) => all.findIndex((other) => canonicalText(other.rawName) === canonicalText(candidate.rawName)) === index);
       return {
         status: "completed",
         candidates,

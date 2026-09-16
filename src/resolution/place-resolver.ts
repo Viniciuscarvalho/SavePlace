@@ -1,4 +1,5 @@
 import type { PlaceCandidate, ResolvedPlace } from "../domain/models.js";
+import type { ProviderUsage } from "./pricing.js";
 
 export type PlaceMatch = Omit<ResolvedPlace, "category" | "subcategory" | "extractionConfidence" | "overallConfidence">;
 
@@ -11,6 +12,7 @@ export type PlaceSearchRun = {
   matches: PlaceMatch[];
   requestCount: number;
   estimatedCostUsd?: number;
+  usage?: ProviderUsage[];
 };
 
 export interface AuditablePlaceProvider extends PlaceProvider {
@@ -22,6 +24,7 @@ export type ResolutionRun = {
   provider: string;
   requestCount: number;
   estimatedCostUsd?: number;
+  usage: ProviderUsage[];
 };
 
 export class PlaceResolver {
@@ -35,11 +38,11 @@ export class PlaceResolver {
     const search = await this.search(candidate);
     const matches = search.matches;
     const best = matches[0];
-    if (!best) return { place: null, provider: this.provider.name, requestCount: search.requestCount, ...(search.estimatedCostUsd === undefined ? {} : { estimatedCostUsd: search.estimatedCostUsd }) };
+    if (!best) return this.emptyResolution(search);
 
     const overallConfidence = Math.sqrt(candidate.extractionConfidence * best.resolutionConfidence);
     if (best.resolutionConfidence < 0.85 || overallConfidence < 0.85) {
-      return { place: null, provider: this.provider.name, requestCount: search.requestCount, ...(search.estimatedCostUsd === undefined ? {} : { estimatedCostUsd: search.estimatedCostUsd }) };
+      return this.emptyResolution(search);
     }
 
     return {
@@ -52,6 +55,7 @@ export class PlaceResolver {
       },
       provider: this.provider.name,
       requestCount: search.requestCount,
+      usage: search.usage ?? [],
       ...(search.estimatedCostUsd === undefined ? {} : { estimatedCostUsd: search.estimatedCostUsd }),
     };
   }
@@ -59,6 +63,16 @@ export class PlaceResolver {
   private async search(candidate: PlaceCandidate): Promise<PlaceSearchRun> {
     if (this.isAuditable(this.provider)) return this.provider.searchWithTrace(candidate);
     return { matches: await this.provider.search(candidate), requestCount: 1 };
+  }
+
+  private emptyResolution(search: PlaceSearchRun): ResolutionRun {
+    return {
+      place: null,
+      provider: this.provider.name,
+      requestCount: search.requestCount,
+      usage: search.usage ?? [],
+      ...(search.estimatedCostUsd === undefined ? {} : { estimatedCostUsd: search.estimatedCostUsd }),
+    };
   }
 
   private isAuditable(provider: PlaceProvider): provider is AuditablePlaceProvider {

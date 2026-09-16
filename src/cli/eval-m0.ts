@@ -7,6 +7,7 @@ import { TikTokSource } from "../ingestion/tiktok-source.js";
 import { AnalyzeSource } from "../pipeline/analyze-source.js";
 import { GooglePlacesProvider } from "../resolution/google-places-provider.js";
 import { PlaceResolver } from "../resolution/place-resolver.js";
+import type { ProviderPricing } from "../resolution/pricing.js";
 import { loadEvaluationCases, runFixtureEvaluation, runLiveEvaluation } from "../evaluation/runner.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -23,6 +24,20 @@ function optionalNonNegativeNumber(name: string): number | undefined {
   return parsed;
 }
 
+function googleTextSearchPricing(): ProviderPricing | undefined {
+  const pricePerUnitUsd = optionalNonNegativeNumber("GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD");
+  if (pricePerUnitUsd === undefined) return undefined;
+  const source = process.env.GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE?.trim();
+  const effectiveDate = process.env.GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE?.trim();
+  return {
+    provider: "google_places_new",
+    operation: "text_search",
+    pricePerUnitUsd,
+    ...(source ? { source } : {}),
+    ...(effectiveDate ? { effectiveDate } : {}),
+  };
+}
+
 const cases = await loadEvaluationCases(casesDirectory);
 let report;
 if (live) {
@@ -30,15 +45,15 @@ if (live) {
   const openAiApiKey = process.env.OPENAI_API_KEY?.trim();
   const googleApiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
   if (!openAiApiKey || !googleApiKey) throw new Error("OPENAI_API_KEY and GOOGLE_MAPS_API_KEY must both be set for the live evaluation.");
-  const googleTextSearchEstimatedCostUsd = optionalNonNegativeNumber("GOOGLE_PLACES_TEXT_SEARCH_ESTIMATED_COST_USD");
+  const pricing = googleTextSearchPricing();
   const pipeline = new AnalyzeSource(
     new ContentSourceRouter([new TikTokSource()]),
     new OpenAIPlaceExtractor({ apiKey: openAiApiKey }),
     new PlaceResolver(new GooglePlacesProvider({
       apiKey: googleApiKey,
-      ...(googleTextSearchEstimatedCostUsd === undefined
+      ...(pricing === undefined
         ? {}
-        : { textSearchEstimatedCostUsd: googleTextSearchEstimatedCostUsd }),
+        : { pricing }),
     })),
   );
   report = await runLiveEvaluation(cases, (input) => pipeline.execute(input));

@@ -46,6 +46,7 @@ export class AnalyzeSource {
     const resolutionRequests = resolutions.reduce((sum, resolution) => sum + resolution.requestCount, 0);
     const knownResolutionCost = resolutions.reduce((sum, resolution) => sum + (resolution.estimatedCostUsd ?? 0), 0);
     const unpricedRequestCount = resolutions.filter((resolution) => resolution.requestCount > 0 && resolution.estimatedCostUsd === undefined).reduce((sum, resolution) => sum + resolution.requestCount, 0);
+    const resolutionUsage = resolutions.flatMap((resolution) => resolution.usage);
 
     return {
       status,
@@ -62,6 +63,7 @@ export class AnalyzeSource {
             requestCount: resolutionRequests,
             ...(unpricedRequestCount === 0 ? { estimatedCostUsd: knownResolutionCost } : {}),
             unpricedRequestCount,
+            usage: resolutionUsage,
           },
         } : {}),
       },

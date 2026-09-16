@@ -57,7 +57,7 @@ describe("OpenAIPlaceExtractor", () => {
       status: "completed",
       candidates: [{ rawName: "Madre", cityHint: "São Paulo", neighborhoodHint: "Pinheiros", countryHint: "Brasil" }],
       attribution: {
-        provider: "openai", model: "gpt-5.6-luna", promptVersion: "m0.3-url-evidence-v2",
+        provider: "openai", model: "gpt-5.6-luna", promptVersion: "m0.3-url-evidence-v4",
         inputTokens: 120, outputTokens: 30, estimatedCostUsd: 0.00006,
       },
     });
@@ -130,6 +130,49 @@ describe("OpenAIPlaceExtractor", () => {
     const extractor = new OpenAIPlaceExtractor({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });
 
     await expect(extractor.extractWithTrace(source)).resolves.toMatchObject({ status: "completed", candidates: [] });
+  });
+
+  it("discards a geographic hint even when the model mislabels it as a venue", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(successfulResponse({
+      candidates: [{
+        rawName: "São Paulo",
+        entityKind: "venue",
+        normalizedName: null,
+        category: "TRAVEL",
+        subcategory: null,
+        cityHint: "São Paulo",
+        neighborhoodHint: null,
+        countryHint: null,
+        extractionConfidence: 0.99,
+        evidenceIndices: [0],
+      }],
+    }));
+    const extractor = new OpenAIPlaceExtractor({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });
+
+    await expect(extractor.extractWithTrace(source)).resolves.toMatchObject({ status: "completed", candidates: [] });
+  });
+
+  it("derives a provider-queryable name from an observed social handle", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(successfulResponse({
+      candidates: [{
+        rawName: "@bar.sororoca",
+        entityKind: "venue",
+        normalizedName: null,
+        category: "FOOD",
+        subcategory: null,
+        cityHint: null,
+        neighborhoodHint: null,
+        countryHint: null,
+        extractionConfidence: 0.8,
+        evidenceIndices: [0],
+      }],
+    }));
+    const handleSource: SourceEvidence = { ...source, evidence: [{ type: "description", text: "Conheça @bar.sororoca" }] };
+    const extractor = new OpenAIPlaceExtractor({ apiKey: "test-key", fetchFn: fetchFn as unknown as typeof fetch });
+
+    await expect(extractor.extractWithTrace(handleSource)).resolves.toMatchObject({
+      candidates: [{ rawName: "@bar.sororoca", normalizedName: "bar sororoca" }],
+    });
   });
 
   it("does not call OpenAI when no key is configured", async () => {

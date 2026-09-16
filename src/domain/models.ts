@@ -35,6 +35,17 @@ export const ResolvedPlaceSchema = z.object({
 });
 export type ResolvedPlace = z.infer<typeof ResolvedPlaceSchema>;
 
+export type ProviderUsage = {
+  provider: string;
+  operation: string;
+  requests: number;
+  billableUnits: number;
+  estimatedCostUsd: number | null;
+  costStatus: "estimated" | "pricing_not_configured";
+  pricingSource?: string;
+  pricingEffectiveDate?: string;
+};
+
 export type SourceEvidence = {
   input: string;
   canonicalUrl: string;
@@ -77,6 +88,7 @@ export type AnalysisResult = {
       /** Undefined means the provider request was made but is not costed locally. */
       estimatedCostUsd?: number;
       unpricedRequestCount: number;
+      usage: ProviderUsage[];
     };
   };
   reason?: string;
