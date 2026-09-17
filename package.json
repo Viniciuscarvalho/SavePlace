@@ -14,6 +14,7 @@
     "test:integration:instagram": "RUN_INSTAGRAM_OEMBED_INTEGRATION=1 vitest run tests/instagram-source.integration.test.ts",
     "test:integration:google-places": "RUN_GOOGLE_PLACES_INTEGRATION=1 vitest run tests/google-places-provider.integration.test.ts",
     "test:railway:smoke": "tsx src/cli/smoke-railway.ts",
+    "test:railway:m1": "tsx src/cli/smoke-m1-railway.ts",
     "eval:m0": "tsx src/cli/eval-m0.ts",
     "eval:m0:live": "RUN_M0_EVAL_LIVE=1 tsx src/cli/eval-m0.ts --live",
     "eval:m0:gate": "RUN_M0_EVAL_LIVE=1 tsx src/cli/eval-m0.ts --live --gate",

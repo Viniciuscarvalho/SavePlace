@@ -8,7 +8,7 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M1.4c saved-place library API.** The repository is
+> **Current stage: M1.5 deployment validation.** The repository is
 > still a modular TypeScript backend; it is not a WebApp or a public product
 > API.
 
@@ -86,6 +86,7 @@ Copy `.env.example` to an ignored `.env`; never commit provider keys or tokens.
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Date of the configured Google price | Optional but recommended with a price |
 | `PROBE_TOKEN` | Railway diagnostic probe | Required only for the remote probe |
 | `SAVEPLACE_PROBE_URL` | Railway smoke CLI | Required only for smoke testing |
+| `SAVEPLACE_API_URL` | Full Railway M1 contract check | With `API_TOKEN`, only for `test:railway:m1` |
 | `API_TOKEN` | Authenticates the M1.4 analysis API | With `DATABASE_URL` and `SAVEPLACE_OWNER_ID`, only for the API |
 | `SAVEPLACE_OWNER_ID` | Server-owned single-owner scope for analysis idempotency | With `DATABASE_URL` and `API_TOKEN`, only for the API |
 
@@ -105,6 +106,7 @@ configure Railway.
 | `npm run test:integration:instagram` | Opt-in live Instagram oEmbed contract test |
 | `npm run test:integration:google-places` | Opt-in Google contract test |
 | `npm run test:railway:smoke` | Authenticated fixed-URL Railway egress probe |
+| `npm run test:railway:m1` | Opt-in Railway M1 analysis/cache/save/list contract check |
 | `npm run eval:m0` | Deterministic M0.5 fixtures; writes ignored local output |
 | `npm run eval:m0:live` | Paid live evaluation; requires exported provider keys |
 | `npm run eval:m0:gate` | Live quality gate; exits non-zero until all criteria pass |
@@ -166,10 +168,11 @@ database. A copied `.env` is not loaded by `npm run db:migrate`, so use Node
 node --env-file=.env --import tsx src/cli/migrate.ts
 ```
 
-For Railway, provision Postgres, inject its `DATABASE_URL` reference into the
-**SavePlace application service**, build the app, then run
-`npm run db:migrate:production` in a trusted release/job context. Migrations
-do not run on application startup.
+For Railway, provision Postgres and inject its `DATABASE_URL` reference into
+the **SavePlace application service**. The M1 deploy configuration runs
+`npm run db:migrate:production` automatically before the service starts;
+migrations do not run on application startup. Run that command manually only
+for an intentional operational recovery against the intended database.
 
 ## M1.4b cached analysis API
 
@@ -223,6 +226,33 @@ a mismatched analysis/place pair or a place without a verified reference, and
 unverified mention. Repeating confirmation is safe and returns the same library
 item; `GET /v1/places` lists only this configured owner's places.
 
+## M1.5 Railway deployment validation
+
+The Railway deploy now runs `npm run db:migrate:production` as a pre-deploy
+command. It executes before the application starts and has the application's
+service variables and private-network access; a migration failure prevents the
+deployment from proceeding. This keeps migrations out of startup while making
+the database schema a deployment prerequisite.
+
+After the service deploys, run the complete contract check from a trusted
+terminal. It calls the public API but never logs `API_TOKEN` or raw social
+metadata.
+
+```bash
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
+```
+
+It verifies, in order: health/configuration, TikTok analysis, same-key
+idempotency replay, a different-key cache hit, explicit confirmation of a
+provider-verified place, and retrieval from the configured owner's library.
+It fails clearly when a deployed LLM/Google configuration does not produce a
+verified place, because the full M1 flow must not silently skip confirmation.
+
+M1 is complete only after this command and `npm run test:railway:smoke` both
+pass against the Railway deployment that contains the merged M1.4b/c PRs. The
+current M1 boundary remains intentionally small: static single-owner API token,
+no end-user authentication and no WebApp.
+
 ## Evaluation and safety gates
 
 Cases live under `evals/cases/`; deterministic responses live in
@@ -267,8 +297,8 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **M1.5 deployment validation:** apply migrations to Railway Postgres and
-   run the cache/idempotency contract against that environment.
+1. **M1 closure:** deploy the latest M1 service, then run the two Railway
+   checks.
 2. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
 3. **Later:** iOS share flow.
