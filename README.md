@@ -8,8 +8,8 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M0 validation.** This repository is a CLI plus a narrow
-> Railway diagnostic probe. It is not a WebApp or a public product API.
+> **Current stage: M1 persistence foundation.** The repository is still a
+> modular TypeScript backend; it is not a WebApp or a public product API.
 
 ## What it proves
 
@@ -34,8 +34,8 @@ Public TikTok URL
 | TikTok URL acquisition | Official oEmbed adapter; live runtime probe still needs a healthy token configuration. |
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
-| Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. The quality gate is currently red. |
-| Persistence / cache / saved list | M1, not implemented. |
+| Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
+| Persistence / cache / saved list | PostgreSQL/Drizzle schema and migrations are ready; repositories and API flows follow in M1. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -65,6 +65,7 @@ Copy `.env.example` to an ignored `.env`; never commit provider keys or tokens.
 | Variable | Used by | Required |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Structured extraction and live evaluation | Only for LLM runs |
+| `DATABASE_URL` | M1 migrations and persistence-enabled deployments | Required only when running migrations/database-backed flows |
 | `GOOGLE_MAPS_API_KEY` | Google Place verification | Only for resolution/live evaluation |
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD` | Google Text Search unit price from the active billing contract | Optional; leave blank when unknown |
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE` | Where that Google price was verified | Optional but recommended with a price |
@@ -90,6 +91,9 @@ configure Railway.
 | `npm run eval:m0` | Deterministic M0.5 fixtures; writes ignored local output |
 | `npm run eval:m0:live` | Paid live evaluation; requires exported provider keys |
 | `npm run eval:m0:gate` | Live quality gate; exits non-zero until all criteria pass |
+| `npm run db:generate` | Generate a reviewed Drizzle SQL migration from the schema |
+| `npm run db:migrate` | Apply committed migrations when `DATABASE_URL` is already injected |
+| `npm run db:migrate:production` | Apply committed migrations from the compiled runtime image |
 
 For `.env` loading on Node 22, invoke an opt-in command explicitly:
 
@@ -97,6 +101,34 @@ For `.env` loading on Node 22, invoke an opt-in command explicitly:
 RUN_M0_EVAL_LIVE=1 \
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live --gate
 ```
+
+## M1 persistence foundation
+
+The foundation is deliberately limited to a reviewed Drizzle schema in
+`src/persistence/schema.ts` and committed SQL under `drizzle/`. It includes
+source aliases, analysis-cache keys, provider-owned place identities, explicit
+user-place records, idempotency records and a usage ledger. It does **not** yet
+connect the pipeline to Postgres, expose repositories/API endpoints, or save a
+place automatically.
+
+Generate migrations locally and review their SQL before committing:
+
+```bash
+npm run db:generate -- --name descriptive_change
+```
+
+Apply committed migrations only against the intended development/staging
+database. A copied `.env` is not loaded by `npm run db:migrate`, so use Node
+22's explicit loading locally:
+
+```bash
+node --env-file=.env --import tsx src/cli/migrate.ts
+```
+
+For Railway, provision Postgres, inject its `DATABASE_URL` reference into the
+**SavePlace application service**, build the app, then run
+`npm run db:migrate:production` in a trusted release/job context. Migrations
+do not run on application startup.
 
 ## Evaluation and safety gates
 
@@ -142,14 +174,13 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **Finish M0:** improve candidate precision and multi-place extraction, make
-   the Railway smoke green, and rerun the live quality gate.
-2. **M1 processing engine:** PostgreSQL/Supabase persistence, source cache and
-   idempotency, explicit save confirmation, jobs, shared usage ledger and
-   tracing.
+1. **Finish M1 persistence core:** repositories, source cache and idempotency,
+   explicit save confirmation, shared usage ledger and tracing.
+2. **M1 Instagram adapter:** acquire only officially exposed Instagram evidence
+   through an explicit credentialed integration; no hidden scraping.
 3. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
-4. **Later:** Instagram adapter and iOS share flow.
+4. **Later:** iOS share flow.
 
 ## Contributing
 
