@@ -56,6 +56,7 @@ function toResponse(cached: AnalysisCacheResult): { status: number; body: Record
       cache: cached.cache,
       analysisId: cached.analysis.analysisId,
       sourceId: cached.analysis.sourceId,
+      verifiedPlaceReferences: cached.analysis.verifiedPlaceReferences,
       result: cached.analysis.result,
     },
   };
