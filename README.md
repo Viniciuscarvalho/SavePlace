@@ -8,7 +8,7 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M1.4a analysis persistence.** The repository is
+> **Current stage: M1.4b cached analysis API.** The repository is
 > still a modular TypeScript backend; it is not a WebApp or a public product
 > API.
 
@@ -37,7 +37,7 @@ Public TikTok or Instagram URL
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
-| Persistence / cache / saved list | Cache, idempotency, analyses, candidates and provider-verified place links persist transactionally; API and explicit save flow follow in M1.4b/c. |
+| Persistence / cache / saved list | Cache, idempotency, analyses, candidates and provider-verified place links persist transactionally; the single-owner analysis API is available. Explicit save flow follows in M1.4c. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -86,6 +86,8 @@ Copy `.env.example` to an ignored `.env`; never commit provider keys or tokens.
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Date of the configured Google price | Optional but recommended with a price |
 | `PROBE_TOKEN` | Railway diagnostic probe | Required only for the remote probe |
 | `SAVEPLACE_PROBE_URL` | Railway smoke CLI | Required only for smoke testing |
+| `API_TOKEN` | Authenticates the M1.4 analysis API | With `DATABASE_URL` and `SAVEPLACE_OWNER_ID`, only for the API |
+| `SAVEPLACE_OWNER_ID` | Server-owned single-owner scope for analysis idempotency | With `DATABASE_URL` and `API_TOKEN`, only for the API |
 
 `PROBE_TOKEN` must be a non-empty service variable in the same Railway
 deployment environment as the running container. A local `.env` does not
@@ -136,7 +138,8 @@ idempotency claim around this cache: the key is scoped to a user and a stable
 request hash, an identical retry replays the stored response, a reused key with
 a different request is a conflict, and concurrent work is not repeated.
 Failures retain only a generic response, never an exception message or secret.
-No public endpoint or product TTL is exposed yet.
+The M1.4b endpoint now exposes this contract; product-facing authentication,
+multiple users and TTL policy remain later work.
 
 When a pipeline result is passed to `DrizzlePersistenceRepository.storeAnalysis`,
 each `placeMention` retains its candidate and evidence and receives a `placeId`
@@ -144,8 +147,9 @@ only when the exact link has `ResolvedPlace.verified === true`. The repository
 deduplicates provider places by `(provider, providerPlaceId)` and replaces
 mentions atomically when a cached analysis is refreshed. Legacy results without
 that explicit link retain unresolved candidates rather than guessing a
-relationship. The CLI/API does not invoke this write yet, and this still does
-not create a `UserPlace`; saving remains an explicit M1.4c confirmation.
+relationship. The API persists cacheable analysis results through this
+repository; the CLI does not. This still does not create a `UserPlace`; saving
+remains an explicit M1.4c confirmation.
 
 Generate migrations locally and review their SQL before committing:
 
@@ -165,6 +169,31 @@ For Railway, provision Postgres, inject its `DATABASE_URL` reference into the
 **SavePlace application service**, build the app, then run
 `npm run db:migrate:production` in a trusted release/job context. Migrations
 do not run on application startup.
+
+## M1.4b cached analysis API
+
+The optional `POST /v1/analyses` endpoint connects TikTok acquisition, the
+evidence-first pipeline, persistence, cache and idempotency. It is enabled only
+when the application service has `DATABASE_URL`, `API_TOKEN` and
+`SAVEPLACE_OWNER_ID`. The owner scope is deployment configuration; clients
+cannot submit or select a user ID.
+
+```bash
+curl -X POST https://your-service.up.railway.app/v1/analyses \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Idempotency-Key: a-new-unique-key" \
+  -H "Content-Type: application/json" \
+  --data '{"url":"https://vt.tiktok.com/.../"}'
+```
+
+An identical retry with the same key returns the retained safe response with
+`replayed: true`. The same URL under a new key returns `cache: "hit"` without
+repeating source acquisition, LLM extraction or place resolution. Reusing a
+key for a different payload returns `409 idempotency_conflict`; a concurrent
+request returns `409 request_in_progress`. Inputs that cannot establish a
+cacheable source return `422` and do not create a cache entry. When the
+endpoint is not configured it returns `503 analysis_api_unavailable` while
+`GET /health` remains healthy and reports `analysisApiConfigured: false`.
 
 ## Evaluation and safety gates
 
@@ -199,8 +228,8 @@ in `needs_review`; an LLM never supplies an address.
 
 Railway runs only a small HTTP process for M0.2 runtime validation:
 
-- `GET /health` is public and returns service health plus the safe boolean
-  `probeConfigured`; it never returns the token.
+- `GET /health` is public and returns service health plus the safe booleans
+  `probeConfigured` and `analysisApiConfigured`; it never returns a token.
 - `POST /internal/probes/tiktok` accepts no arbitrary URL and requires a
   Bearer `PROBE_TOKEN`.
 
@@ -210,14 +239,13 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **M1.4b analysis API:** expose the cached, idempotent TikTok analysis flow.
-2. **M1.4c saved-place library:** require explicit confirmation before creating
+1. **M1.4c saved-place library:** require explicit confirmation before creating
    a `UserPlace`, then list the user's verified places.
-3. **M1.5 deployment validation:** apply migrations to Railway Postgres and
+2. **M1.5 deployment validation:** apply migrations to Railway Postgres and
    run the cache/idempotency contract against that environment.
-4. **M2 WebApp:** URL input, processing state and a personal verified-place
+3. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
-5. **Later:** iOS share flow.
+4. **Later:** iOS share flow.
 
 ## Contributing
 
