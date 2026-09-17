@@ -8,7 +8,7 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M1.3 cache and idempotency foundation.** The repository is
+> **Current stage: M1.4a analysis persistence.** The repository is
 > still a modular TypeScript backend; it is not a WebApp or a public product
 > API.
 
@@ -37,7 +37,7 @@ Public TikTok or Instagram URL
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
-| Persistence / cache / saved list | PostgreSQL/Drizzle schema, migrations, source-analysis cache and idempotency repositories are ready; M1.4 will wire them to an API and explicit save flow. |
+| Persistence / cache / saved list | Cache, idempotency, analyses, candidates and provider-verified place links persist transactionally; API and explicit save flow follow in M1.4b/c. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -117,7 +117,7 @@ RUN_M0_EVAL_LIVE=1 \
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live --gate
 ```
 
-## M1.3 cache and idempotency foundation
+## M1.4a analysis persistence
 
 The foundation is deliberately limited to a reviewed Drizzle schema in
 `src/persistence/schema.ts` and committed SQL under `drizzle/`. It includes
@@ -137,6 +137,15 @@ request hash, an identical retry replays the stored response, a reused key with
 a different request is a conflict, and concurrent work is not repeated.
 Failures retain only a generic response, never an exception message or secret.
 No public endpoint or product TTL is exposed yet.
+
+When a pipeline result is passed to `DrizzlePersistenceRepository.storeAnalysis`,
+each `placeMention` retains its candidate and evidence and receives a `placeId`
+only when the exact link has `ResolvedPlace.verified === true`. The repository
+deduplicates provider places by `(provider, providerPlaceId)` and replaces
+mentions atomically when a cached analysis is refreshed. Legacy results without
+that explicit link retain unresolved candidates rather than guessing a
+relationship. The CLI/API does not invoke this write yet, and this still does
+not create a `UserPlace`; saving remains an explicit M1.4c confirmation.
 
 Generate migrations locally and review their SQL before committing:
 
@@ -201,13 +210,14 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **M1.4 API and saved list:** expose the persistence flows behind an API while
-   preserving explicit confirmation before a place is saved.
-2. **M1.5 deployment validation:** apply migrations to Railway Postgres and
+1. **M1.4b analysis API:** expose the cached, idempotent TikTok analysis flow.
+2. **M1.4c saved-place library:** require explicit confirmation before creating
+   a `UserPlace`, then list the user's verified places.
+3. **M1.5 deployment validation:** apply migrations to Railway Postgres and
    run the cache/idempotency contract against that environment.
-3. **M2 WebApp:** URL input, processing state and a personal verified-place
+4. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
-4. **Later:** iOS share flow.
+5. **Later:** iOS share flow.
 
 ## Contributing
 

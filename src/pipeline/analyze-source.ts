@@ -24,7 +24,7 @@ export class AnalyzeSource {
       return {
         status: "insufficient_evidence",
         source: { input, platform: acquisition.platform, ...(acquisition.canonicalUrl ? { canonicalUrl: acquisition.canonicalUrl } : {}) },
-        evidence: [], candidates: [], places: [],
+        evidence: [], candidates: [], places: [], mentions: [],
         processing: { extractionMethod: "none", durationMs: performance.now() - startedAt },
         reason: acquisition.reason,
       };
@@ -32,7 +32,7 @@ export class AnalyzeSource {
 
     if (acquisition.status === "unsupported") {
       return {
-        status: "failed", source: { input, platform: "unknown" }, evidence: [], candidates: [], places: [],
+        status: "failed", source: { input, platform: "unknown" }, evidence: [], candidates: [], places: [], mentions: [],
         processing: { extractionMethod: "none", durationMs: performance.now() - startedAt }, reason: acquisition.reason,
       };
     }
@@ -40,7 +40,11 @@ export class AnalyzeSource {
     const extraction = await this.extract(acquisition.source);
     const candidates = extraction.candidates;
     const resolutions = await Promise.all(candidates.map((candidate) => this.resolver.resolveWithTrace(candidate)));
-    const resolved = resolutions.flatMap((resolution) => resolution.place ? [resolution.place] : []);
+    const mentions = candidates.map((candidate, index) => {
+      const place = resolutions[index]?.place;
+      return { candidate, ...(place ? { place } : {}) };
+    });
+    const resolved = mentions.flatMap((mention) => mention.place ? [mention.place] : []);
     const places = deduplicateResolvedPlaces(resolved);
     const status = candidates.length > 0 && resolved.length === candidates.length ? "completed" : "needs_review";
     const resolutionRequests = resolutions.reduce((sum, resolution) => sum + resolution.requestCount, 0);
@@ -52,7 +56,7 @@ export class AnalyzeSource {
       status,
       source: { input, platform: acquisition.source.platform, canonicalUrl: acquisition.source.canonicalUrl, ...(acquisition.source.contentId ? { contentId: acquisition.source.contentId } : {}) },
       evidence: acquisition.source.evidence,
-      candidates, places,
+      candidates, places, mentions,
       processing: {
         extractionMethod: "url_metadata",
         durationMs: performance.now() - startedAt,
