@@ -1,4 +1,5 @@
 import { getTableColumns, getTableName } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import { databaseUrlFromEnvironment } from "../src/persistence/database.js";
 import {
@@ -24,6 +25,8 @@ describe("M1 persistence schema", () => {
     expect(getTableColumns(places)).toHaveProperty("providerPlaceId");
     expect(getTableColumns(userPlaces)).toHaveProperty("placeId");
     expect(getTableColumns(idempotencyOperations)).toHaveProperty("requestHash");
+    expect(getTableConfig(sources).indexes.map((index) => index.config.name))
+      .toContain("sources_platform_canonical_url_key");
   });
 
   it("requires a PostgreSQL connection string only when database access is initialized", () => {

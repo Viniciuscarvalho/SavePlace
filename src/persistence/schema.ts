@@ -43,6 +43,7 @@ export const sources = pgTable("sources", {
   thumbnailUrl: text("thumbnail_url"),
   ...timestampColumns,
 }, (table) => [
+  uniqueIndex("sources_platform_canonical_url_key").on(table.platform, table.canonicalUrl),
   uniqueIndex("sources_platform_content_id_key")
     .on(table.platform, table.canonicalContentId)
     .where(sql`${table.canonicalContentId} is not null`),

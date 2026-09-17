@@ -8,8 +8,9 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M1 persistence foundation.** The repository is still a
-> modular TypeScript backend; it is not a WebApp or a public product API.
+> **Current stage: M1.3 cache and idempotency foundation.** The repository is
+> still a modular TypeScript backend; it is not a WebApp or a public product
+> API.
 
 ## What it proves
 
@@ -36,7 +37,7 @@ Public TikTok or Instagram URL
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
-| Persistence / cache / saved list | PostgreSQL/Drizzle schema and migrations are ready; repositories and API flows follow in M1. |
+| Persistence / cache / saved list | PostgreSQL/Drizzle schema, migrations, source-analysis cache and idempotency repositories are ready; M1.4 will wire them to an API and explicit save flow. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -116,27 +117,26 @@ RUN_M0_EVAL_LIVE=1 \
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live --gate
 ```
 
-The Instagram live contract is likewise opt-in and needs all three Instagram
-variables in `.env`; a skipped test is not a provider validation:
-
-```bash
-RUN_INSTAGRAM_OEMBED_INTEGRATION=1 \
-node --env-file=.env ./node_modules/tsx/dist/cli.mjs \
-  ./node_modules/vitest/vitest.mjs run tests/instagram-source.integration.test.ts
-```
-
-The adapter transmits the access token only as part of the official Graph API
-request. Keep it server-side; do not use it for the Railway probe or expose it
-to a future web client.
-
-## M1 persistence foundation
+## M1.3 cache and idempotency foundation
 
 The foundation is deliberately limited to a reviewed Drizzle schema in
 `src/persistence/schema.ts` and committed SQL under `drizzle/`. It includes
 source aliases, analysis-cache keys, provider-owned place identities, explicit
-user-place records, idempotency records and a usage ledger. It does **not** yet
-connect the pipeline to Postgres, expose repositories/API endpoints, or save a
-place automatically.
+user-place records, idempotency records and a usage ledger. The repository
+boundary in `src/persistence/` can return a cached analysis before paid work
+and can replay an idempotent response. It does **not** yet wire the CLI
+pipeline to Postgres, expose a product API, or save a place automatically.
+
+`sources` is unique by `(platform, canonical_url)` and aliases retain the
+normalized submitted URL. The cache key is that alias plus `pipelineVersion`
+and `providerConfigFingerprint`: a hit must not repeat acquisition, LLM or
+Places work; a version or provider-configuration change deliberately causes a
+miss. Invalid or unknown inputs are not cached. The M1.4 API will put the
+idempotency claim around this cache: the key is scoped to a user and a stable
+request hash, an identical retry replays the stored response, a reused key with
+a different request is a conflict, and concurrent work is not repeated.
+Failures retain only a generic response, never an exception message or secret.
+No public endpoint or product TTL is exposed yet.
 
 Generate migrations locally and review their SQL before committing:
 
@@ -201,10 +201,10 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **Finish M1 persistence core:** repositories, source cache and idempotency,
-   explicit save confirmation, shared usage ledger and tracing.
-2. **M1 API and saved list:** expose the persistence flows behind an API while
+1. **M1.4 API and saved list:** expose the persistence flows behind an API while
    preserving explicit confirmation before a place is saved.
+2. **M1.5 deployment validation:** apply migrations to Railway Postgres and
+   run the cache/idempotency contract against that environment.
 3. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
 4. **Later:** iOS share flow.
