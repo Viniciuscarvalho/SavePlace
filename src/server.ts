@@ -10,6 +10,7 @@ import { DrizzlePersistenceRepository } from "./persistence/repositories.js";
 import { AnalysisCache } from "./persistence/analysis-cache.js";
 import { IdempotentOperation, requestHash } from "./persistence/idempotency.js";
 import { AnalysisApiService } from "./application/analysis-api-service.js";
+import { SavedPlaceService } from "./application/saved-place-service.js";
 
 function optionalEnvironment(name: string): string | undefined {
   const value = process.env[name]?.trim();
@@ -34,7 +35,12 @@ const analyzer = new AnalyzeSource(
   new PlaceResolver(placeProvider),
 );
 
-function createAnalysisApi(): { token: string; service: AnalysisApiService; close: () => Promise<void> } | undefined {
+function createAnalysisApi(): {
+  token: string;
+  analysisService: AnalysisApiService;
+  savedPlacesService: SavedPlaceService;
+  close: () => Promise<void>;
+} | undefined {
   const apiToken = optionalEnvironment("API_TOKEN");
   const ownerUserId = optionalEnvironment("SAVEPLACE_OWNER_ID");
   const databaseUrl = optionalEnvironment("DATABASE_URL");
@@ -44,7 +50,7 @@ function createAnalysisApi(): { token: string; service: AnalysisApiService; clos
   const repository = new DrizzlePersistenceRepository(database.db);
   return {
     token: apiToken,
-    service: new AnalysisApiService({
+    analysisService: new AnalysisApiService({
       analyzer,
       cache: new AnalysisCache(repository),
       idempotency: new IdempotentOperation(repository),
@@ -56,6 +62,7 @@ function createAnalysisApi(): { token: string; service: AnalysisApiService; clos
         placeProvider: googleApiKey ? "google_places_new" : "empty",
       }),
     }),
+    savedPlacesService: new SavedPlaceService({ repository, ownerUserId }),
     close: database.close,
   };
 }
@@ -67,7 +74,11 @@ const analysisApi = createAnalysisApi();
 const server = createProbeServer({
   analyzer,
   probeToken: optionalEnvironment("PROBE_TOKEN"),
-  ...(analysisApi ? { apiToken: analysisApi.token, analysisApi: analysisApi.service } : {}),
+  ...(analysisApi ? {
+    apiToken: analysisApi.token,
+    analysisApi: analysisApi.analysisService,
+    savedPlacesApi: analysisApi.savedPlacesService,
+  } : {}),
 });
 const port = portFromEnvironment();
 const probeConfigured = optionalEnvironment("PROBE_TOKEN") !== undefined;

@@ -10,6 +10,12 @@ export type CachedAnalysis = {
   analysisId: string;
   sourceId: string;
   result: AnalysisResult;
+  /** Database identity required for an explicit, analysis-bound save action. */
+  verifiedPlaceReferences: Array<{
+    placeId: string;
+    provider: string;
+    providerPlaceId: string;
+  }>;
 };
 
 export type AnalysisCacheWrite = AnalysisCacheKey & {

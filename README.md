@@ -8,7 +8,7 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M1.4b cached analysis API.** The repository is
+> **Current stage: M1.4c saved-place library API.** The repository is
 > still a modular TypeScript backend; it is not a WebApp or a public product
 > API.
 
@@ -37,7 +37,7 @@ Public TikTok or Instagram URL
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
-| Persistence / cache / saved list | Cache, idempotency, analyses, candidates and provider-verified place links persist transactionally; the single-owner analysis API is available. Explicit save flow follows in M1.4c. |
+| Persistence / cache / saved list | Cache, idempotency, analyses, candidates and provider-verified place links persist transactionally; the single-owner API requires explicit confirmation before a saved library record exists. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -126,8 +126,9 @@ The foundation is deliberately limited to a reviewed Drizzle schema in
 source aliases, analysis-cache keys, provider-owned place identities, explicit
 user-place records, idempotency records and a usage ledger. The repository
 boundary in `src/persistence/` can return a cached analysis before paid work
-and can replay an idempotent response. It does **not** yet wire the CLI
-pipeline to Postgres, expose a product API, or save a place automatically.
+and can replay an idempotent response. M1.4a itself did not wire the CLI
+pipeline to Postgres, expose an API, or save a place automatically; the narrow
+M1.4b/c API below now wires only the authenticated server flow.
 
 `sources` is unique by `(platform, canonical_url)` and aliases retain the
 normalized submitted URL. The cache key is that alias plus `pipelineVersion`
@@ -148,8 +149,8 @@ deduplicates provider places by `(provider, providerPlaceId)` and replaces
 mentions atomically when a cached analysis is refreshed. Legacy results without
 that explicit link retain unresolved candidates rather than guessing a
 relationship. The API persists cacheable analysis results through this
-repository; the CLI does not. This still does not create a `UserPlace`; saving
-remains an explicit M1.4c confirmation.
+repository; the CLI does not. Analysis still never creates a `UserPlace`
+automatically: only the explicit M1.4c confirmation below can do so.
 
 Generate migrations locally and review their SQL before committing:
 
@@ -195,6 +196,33 @@ cacheable source return `422` and do not create a cache entry. When the
 endpoint is not configured it returns `503 analysis_api_unavailable` while
 `GET /health` remains healthy and reports `analysisApiConfigured: false`.
 
+Every cacheable response also includes `verifiedPlaceReferences`: internal
+`placeId` values paired with provider identity for the verified places linked
+to that exact `analysisId`. They are the only IDs accepted by the save endpoint
+below; a provider place ID or arbitrary UUID is not sufficient.
+
+## M1.4c explicit saved-place library
+
+Analysis alone never creates a library item. After reviewing an analysis, a
+client must explicitly confirm one of its `verifiedPlaceReferences`:
+
+```bash
+curl -X POST \
+  "https://your-service.up.railway.app/v1/analyses/$ANALYSIS_ID/places/$PLACE_ID/save" \
+  -H "Authorization: Bearer $API_TOKEN"
+
+curl https://your-service.up.railway.app/v1/places \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+The service proves the submitted place belongs to that analysis through the
+persisted mention and a provider-verified place row before it upserts the
+server-owned user's `UserPlace`. It returns `404 analysis_place_not_found` for
+a mismatched analysis/place pair or a place without a verified reference, and
+`422 place_not_verified` when a repository can identify an associated but
+unverified mention. Repeating confirmation is safe and returns the same library
+item; `GET /v1/places` lists only this configured owner's places.
+
 ## Evaluation and safety gates
 
 Cases live under `evals/cases/`; deterministic responses live in
@@ -239,13 +267,11 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **M1.4c saved-place library:** require explicit confirmation before creating
-   a `UserPlace`, then list the user's verified places.
-2. **M1.5 deployment validation:** apply migrations to Railway Postgres and
+1. **M1.5 deployment validation:** apply migrations to Railway Postgres and
    run the cache/idempotency contract against that environment.
-3. **M2 WebApp:** URL input, processing state and a personal verified-place
+2. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
-4. **Later:** iOS share flow.
+3. **Later:** iOS share flow.
 
 ## Contributing
 

@@ -30,7 +30,7 @@ class CacheRepository implements AnalysisCacheRepository {
   }
 
   async storeAnalysis(write: AnalysisCacheWrite): Promise<CachedAnalysis> {
-    const stored = { analysisId: "analysis-1", sourceId: "source-1", result: write.result };
+    const stored = { analysisId: "analysis-1", sourceId: "source-1", result: write.result, verifiedPlaceReferences: [] };
     this.entries.set(this.key(write), stored);
     return stored;
   }

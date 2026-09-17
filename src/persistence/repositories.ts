@@ -17,7 +17,13 @@ import type {
 } from "./idempotency.js";
 import type { SavePlaceDatabase } from "./database.js";
 import { mentionsForPersistence, providerPlaceIdentity, verifiedPlacesForPersistence } from "./analysis-place-persistence.js";
-import { idempotencyOperations, placeMentions, places, sourceAliases, sourceAnalyses, sources, users } from "./schema.js";
+import { idempotencyOperations, placeMentions, places, sourceAliases, sourceAnalyses, sources, userPlaces, users } from "./schema.js";
+import type {
+  AnalysisPlaceLookup,
+  SavedPlace as UserSavedPlace,
+  SavedPlaceRepository,
+  VerifiedAnalysisPlace,
+} from "../application/saved-place-service.js";
 
 type DatabaseClient = SavePlaceDatabase;
 
@@ -47,7 +53,7 @@ function persistedPlaceId(provider: string, providerPlaceId: string, ids: Readon
   return id;
 }
 
-export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository {
+export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository {
   constructor(private readonly db: DatabaseClient) {}
 
   async findCachedAnalysis(key: AnalysisCacheKey): Promise<CachedAnalysis | undefined> {
@@ -62,7 +68,12 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
         eq(sourceAnalyses.providerConfigFingerprint, key.providerConfigFingerprint),
       ))
       .limit(1);
-    return cached ? { ...cached, result: cached.result as AnalysisResult } : undefined;
+    if (!cached) return undefined;
+    return {
+      ...cached,
+      result: cached.result as AnalysisResult,
+      verifiedPlaceReferences: await this.verifiedPlaceReferences(cached.analysisId),
+    };
   }
 
   async storeAnalysis(write: AnalysisCacheWrite): Promise<CachedAnalysis> {
@@ -70,7 +81,7 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
     const source = cacheableSource(write.result, normalizedInputUrl);
     if (!source) throw new Error("Only a recognized, valid source can be cached.");
 
-    return this.db.transaction(async (tx) => {
+    const stored = await this.db.transaction(async (tx) => {
       await tx
         .insert(sources)
         .values({
@@ -195,6 +206,7 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
       }
       return { analysisId: analysis.id, sourceId: storedSource.id, result: write.result };
     });
+    return { ...stored, verifiedPlaceReferences: await this.verifiedPlaceReferences(stored.analysisId) };
   }
 
   async claim(request: IdempotencyRequest): Promise<IdempotencyClaim> {
@@ -251,6 +263,61 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
     await this.finish(request, "failed", response);
   }
 
+  async findAnalysisPlace(analysisId: string, placeId: string): Promise<AnalysisPlaceLookup | undefined> {
+    const [row] = await this.db
+      .select(verifiedPlaceSelection)
+      .from(placeMentions)
+      .innerJoin(places, eq(placeMentions.placeId, places.id))
+      .where(and(eq(placeMentions.analysisId, analysisId), eq(placeMentions.placeId, placeId)))
+      .limit(1);
+    return row ? { status: "verified", place: toVerifiedAnalysisPlace(row) } : undefined;
+  }
+
+  async upsertUserPlace(userId: string, place: VerifiedAnalysisPlace): Promise<UserSavedPlace> {
+    if (!userId.trim()) throw new Error("userId must be set.");
+    return this.db.transaction(async (tx) => {
+      await tx.insert(users).values({ id: userId }).onConflictDoNothing();
+      await tx
+        .insert(userPlaces)
+        .values({ userId, placeId: place.id, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [userPlaces.userId, userPlaces.placeId],
+          set: { updatedAt: new Date() },
+        });
+      return this.readUserPlace(tx, userId, place.id);
+    });
+  }
+
+  async listUserPlaces(userId: string): Promise<UserSavedPlace[]> {
+    if (!userId.trim()) throw new Error("userId must be set.");
+    const rows = await this.db
+      .select(userPlaceSelection)
+      .from(userPlaces)
+      .innerJoin(places, eq(userPlaces.placeId, places.id))
+      .where(eq(userPlaces.userId, userId))
+      .orderBy(userPlaces.createdAt);
+    return rows.map(toUserSavedPlace);
+  }
+
+  private async readUserPlace(tx: Parameters<Parameters<DatabaseClient["transaction"]>[0]>[0], userId: string, placeId: string): Promise<UserSavedPlace> {
+    const [row] = await tx
+      .select(userPlaceSelection)
+      .from(userPlaces)
+      .innerJoin(places, eq(userPlaces.placeId, places.id))
+      .where(and(eq(userPlaces.userId, userId), eq(userPlaces.placeId, placeId)))
+      .limit(1);
+    if (!row) throw new Error("Unable to persist user place.");
+    return toUserSavedPlace(row);
+  }
+
+  private async verifiedPlaceReferences(analysisId: string): Promise<CachedAnalysis["verifiedPlaceReferences"]> {
+    return this.db
+      .select({ placeId: places.id, provider: places.provider, providerPlaceId: places.providerPlaceId })
+      .from(placeMentions)
+      .innerJoin(places, eq(placeMentions.placeId, places.id))
+      .where(eq(placeMentions.analysisId, analysisId));
+  }
+
   private async finish(request: IdempotencyRequest, state: "completed" | "failed", response: StoredIdempotencyResponse): Promise<void> {
     requireIdempotencyRequest(request);
     const updated = await this.db
@@ -265,4 +332,68 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
       .returning({ id: idempotencyOperations.id });
     if (!updated[0]) throw new Error("The idempotency operation is not processing for this request.");
   }
+}
+
+const verifiedPlaceSelection = {
+  id: places.id,
+  name: places.name,
+  address: places.address,
+  city: places.city,
+  country: places.country,
+  provider: places.provider,
+  providerPlaceId: places.providerPlaceId,
+};
+
+const userPlaceSelection = {
+  userPlaceId: userPlaces.id,
+  status: userPlaces.status,
+  favorite: userPlaces.favorite,
+  notes: userPlaces.notes,
+  id: places.id,
+  name: places.name,
+  address: places.address,
+  city: places.city,
+  country: places.country,
+  provider: places.provider,
+  providerPlaceId: places.providerPlaceId,
+};
+
+function toVerifiedAnalysisPlace(row: typeof verifiedPlaceSelection extends infer _Selection ? {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+  provider: string;
+  providerPlaceId: string;
+} : never): VerifiedAnalysisPlace {
+  return row;
+}
+
+function toUserSavedPlace(row: typeof userPlaceSelection extends infer _Selection ? {
+  userPlaceId: string;
+  status: "want_to_go" | "visited";
+  favorite: boolean;
+  notes: string | null;
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+  provider: string;
+  providerPlaceId: string;
+} : never): UserSavedPlace {
+  return {
+    userPlaceId: row.userPlaceId,
+    id: row.id,
+    status: row.status,
+    favorite: row.favorite,
+    ...(row.notes ? { notes: row.notes } : {}),
+    name: row.name,
+    address: row.address,
+    city: row.city,
+    country: row.country,
+    provider: row.provider,
+    providerPlaceId: row.providerPlaceId,
+  };
 }

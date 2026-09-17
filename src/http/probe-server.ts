@@ -3,6 +3,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AnalysisResult } from "../domain/models.js";
 import { IdempotencyConflictError, IdempotencyInProgressError } from "../persistence/idempotency.js";
 import type { AnalysisApiResponse } from "../application/analysis-api-service.js";
+import {
+  AnalysisPlaceNotFoundError,
+  AnalysisPlaceUnverifiedError,
+  type SavedPlace,
+} from "../application/saved-place-service.js";
 
 export const TIKTOK_ACCEPTANCE_URL = "https://vt.tiktok.com/ZSq4UprxR/";
 
@@ -14,6 +19,11 @@ export interface AnalysisApi {
   analyze(inputUrl: string, idempotencyKey: string): Promise<AnalysisApiResponse>;
 }
 
+export interface SavedPlacesApi {
+  confirm(analysisId: string, placeId: string): Promise<SavedPlace>;
+  list(): Promise<SavedPlace[]>;
+}
+
 export type ProbeServerOptions = {
   analyzer: SourceAnalyzer;
   /**
@@ -23,6 +33,7 @@ export type ProbeServerOptions = {
   probeToken?: string | undefined;
   apiToken?: string | undefined;
   analysisApi?: AnalysisApi | undefined;
+  savedPlacesApi?: SavedPlacesApi | undefined;
   acceptanceUrl?: string;
 };
 
@@ -74,6 +85,23 @@ export function createProbeServer(options: ProbeServerOptions): Server {
 
     if (url.pathname === "/v1/analyses") {
       await handleAnalysisApi(request, response, options.analysisApi, apiToken);
+      return;
+    }
+
+    if (url.pathname === "/v1/places") {
+      await handleSavedPlacesApi(request, response, options.savedPlacesApi, apiToken);
+      return;
+    }
+
+    const saveMatch = /^\/v1\/analyses\/([^/]+)\/places\/([^/]+)\/save$/.exec(url.pathname);
+    if (saveMatch) {
+      const analysisId = saveMatch[1];
+      const placeId = saveMatch[2];
+      if (!analysisId || !placeId) {
+        writeJson(response, 404, { error: "not_found" });
+        return;
+      }
+      await handleSavePlaceApi(request, response, options.savedPlacesApi, apiToken, analysisId, placeId);
       return;
     }
 
@@ -137,6 +165,55 @@ async function handleAnalysisApi(request: IncomingMessage, response: ServerRespo
     if (error instanceof IdempotencyConflictError) writeJson(response, 409, { error: "idempotency_conflict" });
     else if (error instanceof IdempotencyInProgressError) writeJson(response, 409, { error: "request_in_progress" });
     else writeJson(response, 502, { error: "analysis_failed" });
+  }
+}
+
+async function handleSavedPlacesApi(request: IncomingMessage, response: ServerResponse, api: SavedPlacesApi | undefined, apiToken: string | undefined): Promise<void> {
+  if (request.method !== "GET") {
+    writeJson(response, 405, { error: "method_not_allowed" }, { allow: "GET" });
+    return;
+  }
+  if (!api || !apiToken) {
+    writeJson(response, 503, { error: "analysis_api_unavailable" });
+    return;
+  }
+  if (!hasValidBearerToken(request, apiToken)) {
+    writeJson(response, 401, { error: "unauthorized" });
+    return;
+  }
+  try {
+    writeJson(response, 200, { places: await api.list() });
+  } catch {
+    writeJson(response, 502, { error: "saved_places_failed" });
+  }
+}
+
+async function handleSavePlaceApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  api: SavedPlacesApi | undefined,
+  apiToken: string | undefined,
+  analysisId: string,
+  placeId: string,
+): Promise<void> {
+  if (request.method !== "POST") {
+    writeJson(response, 405, { error: "method_not_allowed" }, { allow: "POST" });
+    return;
+  }
+  if (!api || !apiToken) {
+    writeJson(response, 503, { error: "analysis_api_unavailable" });
+    return;
+  }
+  if (!hasValidBearerToken(request, apiToken)) {
+    writeJson(response, 401, { error: "unauthorized" });
+    return;
+  }
+  try {
+    writeJson(response, 200, { place: await api.confirm(analysisId, placeId) });
+  } catch (error) {
+    if (error instanceof AnalysisPlaceNotFoundError) writeJson(response, 404, { error: "analysis_place_not_found" });
+    else if (error instanceof AnalysisPlaceUnverifiedError) writeJson(response, 422, { error: "place_not_verified" });
+    else writeJson(response, 502, { error: "save_place_failed" });
   }
 }
 

@@ -14,14 +14,14 @@ const result: AnalysisResult = {
 };
 
 class MemoryCacheRepository implements AnalysisCacheRepository {
-  readonly entries = new Map<string, { analysisId: string; sourceId: string; result: AnalysisResult }>();
+  readonly entries = new Map<string, { analysisId: string; sourceId: string; result: AnalysisResult; verifiedPlaceReferences: [] }>();
 
   async findCachedAnalysis(key: { inputUrl: string; pipelineVersion: string; providerConfigFingerprint: string }) {
     return this.entries.get(JSON.stringify(key));
   }
 
   async storeAnalysis(write: { inputUrl: string; pipelineVersion: string; providerConfigFingerprint: string; result: AnalysisResult }) {
-    const analysis = { analysisId: "analysis-1", sourceId: "source-1", result: write.result };
+    const analysis = { analysisId: "analysis-1", sourceId: "source-1", result: write.result, verifiedPlaceReferences: [] as [] };
     this.entries.set(JSON.stringify({ inputUrl: write.inputUrl, pipelineVersion: write.pipelineVersion, providerConfigFingerprint: write.providerConfigFingerprint }), analysis);
     return analysis;
   }
