@@ -14,7 +14,7 @@ portfolio project: reliability and evidence matter more than a polished UI.
 ## What it proves
 
 ```text
-Public TikTok URL
+Public TikTok or Instagram URL
   -> official oEmbed metadata
   -> evidence-bound LLM candidates
   -> external PlaceProvider verification
@@ -32,6 +32,7 @@ Public TikTok URL
 | Area | State |
 | --- | --- |
 | TikTok URL acquisition | Official oEmbed adapter; live runtime probe still needs a healthy token configuration. |
+| Instagram URL acquisition | Official, credentialed Meta oEmbed adapter for posts, Reels and TV posts; missing configuration fails safely without a request. |
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
@@ -51,11 +52,20 @@ npm run typecheck
 npm test
 ```
 
-Analyze a TikTok URL. Without provider keys this still exercises acquisition
-and returns no LLM or Google guesses.
+Analyze a TikTok URL. An Instagram URL additionally requires the official Meta
+oEmbed variables below. Without LLM/Google keys, acquisition still runs but
+returns no LLM or Google guesses.
 
 ```bash
 npm run analyze -- "https://vt.tiktok.com/..."
+```
+
+For Instagram, replace the endpoint's `vXX.X` placeholder with a supported
+Graph API version, then load the local environment explicitly on Node 22:
+
+```bash
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/analyze.ts \
+  "https://www.instagram.com/reel/.../"
 ```
 
 ## Configuration
@@ -65,6 +75,9 @@ Copy `.env.example` to an ignored `.env`; never commit provider keys or tokens.
 | Variable | Used by | Required |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Structured extraction and live evaluation | Only for LLM runs |
+| `INSTAGRAM_OEMBED_ACCESS_TOKEN` | Official Meta oEmbed request | With endpoint, only for Instagram URLs |
+| `INSTAGRAM_OEMBED_ENDPOINT` | Official HTTPS Graph API `instagram_oembed` endpoint; replace `vXX.X` in the example with a supported version | With access token, only for Instagram URLs |
+| `INSTAGRAM_OEMBED_TEST_URL` | Opt-in live Instagram oEmbed contract test | Only for that test |
 | `DATABASE_URL` | M1 migrations and persistence-enabled deployments | Required only when running migrations/database-backed flows |
 | `GOOGLE_MAPS_API_KEY` | Google Place verification | Only for resolution/live evaluation |
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD` | Google Text Search unit price from the active billing contract | Optional; leave blank when unknown |
@@ -86,6 +99,7 @@ configure Railway.
 | `npm run build` | Compile the Railway process |
 | `npm run analyze -- <url>` | Run the local pipeline |
 | `npm run test:integration:tiktok` | Opt-in live TikTok contract test |
+| `npm run test:integration:instagram` | Opt-in live Instagram oEmbed contract test |
 | `npm run test:integration:google-places` | Opt-in Google contract test |
 | `npm run test:railway:smoke` | Authenticated fixed-URL Railway egress probe |
 | `npm run eval:m0` | Deterministic M0.5 fixtures; writes ignored local output |
@@ -101,6 +115,19 @@ For `.env` loading on Node 22, invoke an opt-in command explicitly:
 RUN_M0_EVAL_LIVE=1 \
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live --gate
 ```
+
+The Instagram live contract is likewise opt-in and needs all three Instagram
+variables in `.env`; a skipped test is not a provider validation:
+
+```bash
+RUN_INSTAGRAM_OEMBED_INTEGRATION=1 \
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs \
+  ./node_modules/vitest/vitest.mjs run tests/instagram-source.integration.test.ts
+```
+
+The adapter transmits the access token only as part of the official Graph API
+request. Keep it server-side; do not use it for the Railway probe or expose it
+to a future web client.
 
 ## M1 persistence foundation
 
@@ -176,8 +203,8 @@ environment and redeploy before rerunning the smoke command.
 
 1. **Finish M1 persistence core:** repositories, source cache and idempotency,
    explicit save confirmation, shared usage ledger and tracing.
-2. **M1 Instagram adapter:** acquire only officially exposed Instagram evidence
-   through an explicit credentialed integration; no hidden scraping.
+2. **M1 API and saved list:** expose the persistence flows behind an API while
+   preserving explicit confirmation before a place is saved.
 3. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
 4. **Later:** iOS share flow.
