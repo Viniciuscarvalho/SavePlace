@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "sources_platform_canonical_url_key" ON "sources" USING btree ("platform","canonical_url");

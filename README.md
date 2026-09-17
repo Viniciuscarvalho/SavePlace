@@ -35,7 +35,7 @@ Public TikTok URL
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
-| Persistence / cache / saved list | PostgreSQL/Drizzle schema and migrations are ready; repositories and API flows follow in M1. |
+| Persistence / cache / saved list | PostgreSQL/Drizzle schema, migrations, source-analysis cache and idempotency repositories are ready; API and explicit save flows follow in M1.4. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -107,9 +107,21 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live -
 The foundation is deliberately limited to a reviewed Drizzle schema in
 `src/persistence/schema.ts` and committed SQL under `drizzle/`. It includes
 source aliases, analysis-cache keys, provider-owned place identities, explicit
-user-place records, idempotency records and a usage ledger. It does **not** yet
-connect the pipeline to Postgres, expose repositories/API endpoints, or save a
-place automatically.
+user-place records, idempotency records and a usage ledger. The repository
+boundary in `src/persistence/` can return a cached analysis before paid work
+and can replay an idempotent response. It does **not** yet wire the CLI
+pipeline to Postgres, expose a product API, or save a place automatically.
+
+`sources` is unique by `(platform, canonical_url)` and aliases retain the
+normalized submitted URL. The cache key is that alias plus `pipelineVersion`
+and `providerConfigFingerprint`: a hit must not repeat acquisition, LLM or
+Places work; a version or provider-configuration change deliberately causes a
+miss. Invalid or unknown inputs are not cached. The M1.4 API will put the
+idempotency claim around this cache: the key is scoped to a user and a stable
+request hash, an identical retry replays the stored response, a reused key with
+a different request is a conflict, and concurrent work is not repeated.
+Failures retain only a generic response, never an exception message or secret.
+No public endpoint or product TTL is exposed yet.
 
 Generate migrations locally and review their SQL before committing:
 
@@ -174,10 +186,10 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **Finish M1 persistence core:** repositories, source cache and idempotency,
-   explicit save confirmation, shared usage ledger and tracing.
-2. **M1 Instagram adapter:** acquire only officially exposed Instagram evidence
-   through an explicit credentialed integration; no hidden scraping.
+1. **M1 API and saved list:** expose the persistence flows behind an API while
+   preserving explicit confirmation before a place is saved.
+2. **Optional Instagram adapter:** acquire only officially exposed evidence
+   when provider access is available; no hidden scraping.
 3. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
 4. **Later:** iOS share flow.
