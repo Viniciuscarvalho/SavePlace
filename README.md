@@ -8,8 +8,9 @@ SavePlace is an open-source TypeScript spike for turning a public social URL
 into conservative, provider-verified place data. It is an AI-engineering
 portfolio project: reliability and evidence matter more than a polished UI.
 
-> **Current stage: M1 persistence foundation.** The repository is still a
-> modular TypeScript backend; it is not a WebApp or a public product API.
+> **Current stage: M1.3 cache and idempotency foundation.** The repository is
+> still a modular TypeScript backend; it is not a WebApp or a public product
+> API.
 
 ## What it proves
 
@@ -35,7 +36,7 @@ Public TikTok URL
 | Structured extraction | OpenAI Responses API with strict JSON Schema, evidence attribution, token/cost/latency trace. |
 | Place verification | Google Places (New), minimal field mask, per-process M0 budget guard. |
 | Evals | 10 TikTok cases, deterministic fixtures and an explicit paid live run. |
-| Persistence / cache / saved list | PostgreSQL/Drizzle schema, migrations, source-analysis cache and idempotency repositories are ready; API and explicit save flows follow in M1.4. |
+| Persistence / cache / saved list | PostgreSQL/Drizzle schema, migrations, source-analysis cache and idempotency repositories are ready; M1.4 will wire them to an API and explicit save flow. |
 | WebApp | M2, not implemented. |
 
 Fixtures validate the runner contract and regressions; the live run measures
@@ -102,7 +103,7 @@ RUN_M0_EVAL_LIVE=1 \
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/eval-m0.ts --live --gate
 ```
 
-## M1 persistence foundation
+## M1.3 cache and idempotency foundation
 
 The foundation is deliberately limited to a reviewed Drizzle schema in
 `src/persistence/schema.ts` and committed SQL under `drizzle/`. It includes
@@ -186,10 +187,10 @@ environment and redeploy before rerunning the smoke command.
 
 ## Roadmap
 
-1. **M1 API and saved list:** expose the persistence flows behind an API while
+1. **M1.4 API and saved list:** expose the persistence flows behind an API while
    preserving explicit confirmation before a place is saved.
-2. **Optional Instagram adapter:** acquire only officially exposed evidence
-   when provider access is available; no hidden scraping.
+2. **M1.5 deployment validation:** apply migrations to Railway Postgres and
+   run the cache/idempotency contract against that environment.
 3. **M2 WebApp:** URL input, processing state and a personal verified-place
    library.
 4. **Later:** iOS share flow.
