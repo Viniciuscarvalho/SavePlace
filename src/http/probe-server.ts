@@ -1,11 +1,17 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AnalysisResult } from "../domain/models.js";
+import { IdempotencyConflictError, IdempotencyInProgressError } from "../persistence/idempotency.js";
+import type { AnalysisApiResponse } from "../application/analysis-api-service.js";
 
 export const TIKTOK_ACCEPTANCE_URL = "https://vt.tiktok.com/ZSq4UprxR/";
 
 export interface SourceAnalyzer {
   execute(input: string): Promise<AnalysisResult>;
+}
+
+export interface AnalysisApi {
+  analyze(inputUrl: string, idempotencyKey: string): Promise<AnalysisApiResponse>;
 }
 
 export type ProbeServerOptions = {
@@ -15,6 +21,8 @@ export type ProbeServerOptions = {
    * checks remain available, while the probe endpoint fails closed.
    */
   probeToken?: string | undefined;
+  apiToken?: string | undefined;
+  analysisApi?: AnalysisApi | undefined;
   acceptanceUrl?: string;
 };
 
@@ -55,11 +63,17 @@ function toProbeResponse(result: AnalysisResult): ProbeResponse {
  */
 export function createProbeServer(options: ProbeServerOptions): Server {
   const probeToken = options.probeToken?.trim() || undefined;
+  const apiToken = options.apiToken?.trim() || undefined;
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
 
     if (request.method === "GET" && url.pathname === "/health") {
-      writeJson(response, 200, { status: "ok", probeConfigured: probeToken !== undefined });
+      writeJson(response, 200, { status: "ok", probeConfigured: probeToken !== undefined, analysisApiConfigured: Boolean(apiToken && options.analysisApi) });
+      return;
+    }
+
+    if (url.pathname === "/v1/analyses") {
+      await handleAnalysisApi(request, response, options.analysisApi, apiToken);
       return;
     }
 
@@ -90,4 +104,55 @@ export function createProbeServer(options: ProbeServerOptions): Server {
       writeJson(response, 502, { error: "probe_failed" });
     }
   });
+}
+
+async function handleAnalysisApi(request: IncomingMessage, response: ServerResponse, api: AnalysisApi | undefined, apiToken: string | undefined): Promise<void> {
+  if (request.method !== "POST") {
+    writeJson(response, 405, { error: "method_not_allowed" }, { allow: "POST" });
+    return;
+  }
+  if (!api || !apiToken) {
+    writeJson(response, 503, { error: "analysis_api_unavailable" });
+    return;
+  }
+  if (!hasValidBearerToken(request, apiToken)) {
+    writeJson(response, 401, { error: "unauthorized" });
+    return;
+  }
+  const idempotencyHeader = request.headers["idempotency-key"];
+  const idempotencyKey = typeof idempotencyHeader === "string" ? idempotencyHeader.trim() : undefined;
+  if (!idempotencyKey) {
+    writeJson(response, 400, { error: "idempotency_key_required" });
+    return;
+  }
+  const body = await readJson(request);
+  if (!body || typeof body.url !== "string" || !body.url.trim()) {
+    writeJson(response, 400, { error: "invalid_request" });
+    return;
+  }
+  try {
+    const output = await api.analyze(body.url, idempotencyKey);
+    writeJson(response, output.status, { ...output.body, replayed: output.replayed });
+  } catch (error) {
+    if (error instanceof IdempotencyConflictError) writeJson(response, 409, { error: "idempotency_conflict" });
+    else if (error instanceof IdempotencyInProgressError) writeJson(response, 409, { error: "request_in_progress" });
+    else writeJson(response, 502, { error: "analysis_failed" });
+  }
+}
+
+async function readJson(request: IncomingMessage): Promise<Record<string, unknown> | undefined> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > 16_384) return undefined;
+    chunks.push(buffer);
+  }
+  try {
+    const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
 }

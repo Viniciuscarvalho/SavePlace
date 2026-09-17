@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResult } from "../src/domain/models.js";
-import { createProbeServer, type SourceAnalyzer } from "../src/http/probe-server.js";
+import { createProbeServer, type AnalysisApi, type SourceAnalyzer } from "../src/http/probe-server.js";
 
 const servers: ReturnType<typeof createProbeServer>[] = [];
 
@@ -9,8 +9,13 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))));
 });
 
-async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string } = { probeToken: "test-token" }): Promise<string> {
-  const server = createProbeServer({ analyzer, probeToken: options.probeToken });
+async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi } = { probeToken: "test-token" }): Promise<string> {
+  const server = createProbeServer({
+    analyzer,
+    probeToken: options.probeToken,
+    apiToken: options.apiToken,
+    analysisApi: options.analysisApi,
+  });
   servers.push(server);
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -36,14 +41,14 @@ const acquiredResult: AnalysisResult = {
 describe("Railway probe server", () => {
   it("serves an unauthenticated healthcheck", async () => {
     const baseUrl = await startServer({ execute: vi.fn() });
-    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: true });
+    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: true, analysisApiConfigured: false });
   });
 
   it("keeps health available but fails closed when its token is missing", async () => {
     const execute = vi.fn();
     const baseUrl = await startServer({ execute }, {});
 
-    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: false });
+    await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: false, analysisApiConfigured: false });
 
     const response = await fetch(`${baseUrl}/internal/probes/tiktok`, {
       method: "POST",
@@ -62,6 +67,28 @@ describe("Railway probe server", () => {
     const response = await fetch(`${baseUrl}/internal/probes/tiktok`);
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST");
+  });
+
+  it("protects the analysis endpoint, requires idempotency, and returns the service result", async () => {
+    const analyze = vi.fn().mockResolvedValue({
+      replayed: false,
+      status: 200,
+      body: { cache: "miss", analysisId: "analysis-1", result: acquiredResult },
+    });
+    const baseUrl = await startServer({ execute: vi.fn() }, { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze } });
+
+    await expect(fetch(`${baseUrl}/v1/analyses`, { method: "POST" }).then((response) => response.status)).resolves.toBe(401);
+    await expect(fetch(`${baseUrl}/v1/analyses`, { method: "POST", headers: { Authorization: "Bearer api-token" } }).then((response) => response.json()))
+      .resolves.toEqual({ error: "idempotency_key_required" });
+    const response = await fetch(`${baseUrl}/v1/analyses`, {
+      method: "POST",
+      headers: { Authorization: "Bearer api-token", "Idempotency-Key": "key-1", "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://vt.tiktok.com/example/" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ cache: "miss", analysisId: "analysis-1", replayed: false });
+    expect(analyze).toHaveBeenCalledWith("https://vt.tiktok.com/example/", "key-1");
   });
 
   it("returns an allowlisted acquisition result", async () => {
