@@ -55,6 +55,7 @@ describe("AnalyzeSource", () => {
     expect(result.status).toBe("completed");
     expect(result.places).toHaveLength(1);
     expect(result.places[0]).toMatchObject({ verified: true, provider: "test", extractionConfidence: 0.96 });
+    expect(result.mentions).toEqual([{ candidate, place: result.places[0] }]);
     expect(result.processing.extraction).toEqual({ status: "completed", ...trace.attribution });
   });
 
@@ -73,6 +74,20 @@ describe("AnalyzeSource", () => {
     expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 1, unpricedRequestCount: 1, usage: [] });
   });
 
+  it("retains an unresolved candidate without inventing a provider place link", async () => {
+    const pipeline = new AnalyzeSource(
+      new ContentSourceRouter([contentSource]),
+      extractor,
+      new PlaceResolver({ name: "empty", search: async () => [] }),
+    );
+
+    await expect(pipeline.execute(source.input)).resolves.toMatchObject({
+      status: "needs_review",
+      mentions: [{ candidate }],
+      places: [],
+    });
+  });
+
   it("completes duplicate candidates once they resolve to the same provider identity", async () => {
     const duplicateExtractor: AuditablePlaceExtractor = {
       extract: async () => [candidate, { ...candidate, extractionConfidence: 0.9 }],
@@ -84,6 +99,8 @@ describe("AnalyzeSource", () => {
 
     expect(result.status).toBe("completed");
     expect(result.places).toHaveLength(1);
+    expect(result.mentions).toHaveLength(2);
+    expect(result.mentions?.every((mention) => mention.place?.providerPlaceId === "id")).toBe(true);
     expect(result.processing.resolution).toEqual({ provider: "test", requestCount: 2, unpricedRequestCount: 2, usage: [] });
   });
 });

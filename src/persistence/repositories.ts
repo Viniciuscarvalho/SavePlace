@@ -16,7 +16,8 @@ import type {
   StoredIdempotencyResponse,
 } from "./idempotency.js";
 import type { SavePlaceDatabase } from "./database.js";
-import { idempotencyOperations, sourceAliases, sourceAnalyses, sources, users } from "./schema.js";
+import { mentionsForPersistence, providerPlaceIdentity, verifiedPlacesForPersistence } from "./analysis-place-persistence.js";
+import { idempotencyOperations, placeMentions, places, sourceAliases, sourceAnalyses, sources, users } from "./schema.js";
 
 type DatabaseClient = SavePlaceDatabase;
 
@@ -33,6 +34,17 @@ function requireIdempotencyRequest(request: IdempotencyRequest): void {
   if (!request.idempotencyKey.trim() || request.idempotencyKey.length > 255) throw new Error("idempotencyKey must be 1-255 characters.");
   if (!request.requestHash.trim() || request.requestHash.length > 128) throw new Error("requestHash must be 1-128 characters.");
   if (Number.isNaN(request.expiresAt.getTime())) throw new Error("expiresAt must be a valid date.");
+}
+
+function decimal(value: number, scale: number, label: string): string {
+  if (!Number.isFinite(value)) throw new Error(`${label} must be a finite number.`);
+  return value.toFixed(scale);
+}
+
+function persistedPlaceId(provider: string, providerPlaceId: string, ids: ReadonlyMap<string, string>): string {
+  const id = ids.get(`${provider}:${providerPlaceId}`);
+  if (!id) throw new Error("Unable to link a verified place mention.");
+  return id;
 }
 
 export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository {
@@ -122,6 +134,65 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
         })
         .returning({ id: sourceAnalyses.id });
       if (!analysis) throw new Error("Unable to persist analysis cache entry.");
+
+      const mentions = mentionsForPersistence(write.result);
+      const storedPlaceIds = new Map<string, string>();
+      for (const place of verifiedPlacesForPersistence(mentions)) {
+        const [storedPlace] = await tx
+          .insert(places)
+          .values({
+            name: place.name,
+            normalizedName: place.normalizedName,
+            category: place.category,
+            ...(place.subcategory ? { subcategory: place.subcategory } : {}),
+            address: place.address,
+            city: place.city,
+            ...(place.state ? { state: place.state } : {}),
+            country: place.country,
+            latitude: decimal(place.latitude, 7, "latitude"),
+            longitude: decimal(place.longitude, 7, "longitude"),
+            provider: place.provider,
+            providerPlaceId: place.providerPlaceId,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [places.provider, places.providerPlaceId],
+            set: {
+              name: place.name,
+              normalizedName: place.normalizedName,
+              category: place.category,
+              subcategory: place.subcategory,
+              address: place.address,
+              city: place.city,
+              state: place.state,
+              country: place.country,
+              latitude: decimal(place.latitude, 7, "latitude"),
+              longitude: decimal(place.longitude, 7, "longitude"),
+              updatedAt: new Date(),
+            },
+          })
+          .returning({ id: places.id });
+        if (!storedPlace) throw new Error("Unable to persist verified place.");
+        storedPlaceIds.set(providerPlaceIdentity(place), storedPlace.id);
+      }
+
+      // An analysis cache refresh replaces its derived links atomically. It does
+      // not touch user_places: saving to a user's library remains an explicit
+      // confirmation in the next M1.4 slice.
+      await tx.delete(placeMentions).where(eq(placeMentions.analysisId, analysis.id));
+      if (mentions.length > 0) {
+        await tx.insert(placeMentions).values(mentions.map((mention) => ({
+          analysisId: analysis.id,
+          ...(mention.place ? { placeId: persistedPlaceId(mention.place.provider, mention.place.providerPlaceId, storedPlaceIds) } : {}),
+          candidate: mention.candidate,
+          evidence: mention.evidence,
+          extractionConfidence: decimal(mention.candidate.extractionConfidence, 3, "extractionConfidence"),
+          ...(mention.place ? {
+            resolutionConfidence: decimal(mention.place.resolutionConfidence, 3, "resolutionConfidence"),
+            overallConfidence: decimal(mention.place.overallConfidence, 3, "overallConfidence"),
+          } : {}),
+        })));
+      }
       return { analysisId: analysis.id, sourceId: storedSource.id, result: write.result };
     });
   }

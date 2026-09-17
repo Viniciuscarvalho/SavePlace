@@ -35,6 +35,12 @@ export const ResolvedPlaceSchema = z.object({
 });
 export type ResolvedPlace = z.infer<typeof ResolvedPlaceSchema>;
 
+/** Keeps the provider-verified identity attached to the exact extracted candidate. */
+export type AnalysisPlaceMention = {
+  candidate: PlaceCandidate;
+  place?: ResolvedPlace;
+};
+
 export type ProviderUsage = {
   provider: string;
   operation: string;
@@ -69,6 +75,8 @@ export type AnalysisResult = {
   evidence: Evidence[];
   candidates: PlaceCandidate[];
   places: ResolvedPlace[];
+  /** Optional while legacy M0 fixture results remain readable. New pipeline runs always populate it. */
+  mentions?: AnalysisPlaceMention[];
   processing: {
     extractionMethod: "url_metadata" | "transcript" | "visual" | "multimodal" | "none";
     durationMs: number;
