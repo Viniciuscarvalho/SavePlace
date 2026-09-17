@@ -3,6 +3,7 @@ builder = "railpack"
 buildCommand = "npm run build"
 
 [deploy]
+preDeployCommand = ["npm run db:migrate:production"]
 startCommand = "npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
