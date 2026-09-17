@@ -1,5 +1,6 @@
 import { AnalyzeSource } from "../pipeline/analyze-source.js";
 import { ContentSourceRouter } from "../ingestion/content-source.js";
+import { InstagramSource } from "../ingestion/instagram-source.js";
 import { TikTokSource } from "../ingestion/tiktok-source.js";
 import { OpenAIPlaceExtractor } from "../extraction/place-extractor.js";
 import { GooglePlacesProvider } from "../resolution/google-places-provider.js";
@@ -33,7 +34,13 @@ if (!input) {
   const pricing = googleTextSearchPricing();
   const placeProvider: PlaceProvider = googleApiKey ? new GooglePlacesProvider({ apiKey: googleApiKey, ...(pricing ? { pricing } : {}) }) : new EmptyPlaceProvider();
   const pipeline = new AnalyzeSource(
-    new ContentSourceRouter([new TikTokSource()]),
+    new ContentSourceRouter([
+      new TikTokSource(),
+      new InstagramSource({
+        accessToken: process.env.INSTAGRAM_OEMBED_ACCESS_TOKEN,
+        endpoint: process.env.INSTAGRAM_OEMBED_ENDPOINT,
+      }),
+    ]),
     new OpenAIPlaceExtractor(process.env.OPENAI_API_KEY?.trim() ? { apiKey: process.env.OPENAI_API_KEY } : {}),
     new PlaceResolver(placeProvider),
   );
