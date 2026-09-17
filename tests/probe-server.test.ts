@@ -1,7 +1,8 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResult } from "../src/domain/models.js";
-import { createProbeServer, type AnalysisApi, type SourceAnalyzer } from "../src/http/probe-server.js";
+import { AnalysisPlaceNotFoundError, type SavedPlace } from "../src/application/saved-place-service.js";
+import { createProbeServer, type AnalysisApi, type SavedPlacesApi, type SourceAnalyzer } from "../src/http/probe-server.js";
 
 const servers: ReturnType<typeof createProbeServer>[] = [];
 
@@ -9,12 +10,13 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))));
 });
 
-async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi } = { probeToken: "test-token" }): Promise<string> {
+async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi; savedPlacesApi?: SavedPlacesApi } = { probeToken: "test-token" }): Promise<string> {
   const server = createProbeServer({
     analyzer,
     probeToken: options.probeToken,
     apiToken: options.apiToken,
     analysisApi: options.analysisApi,
+    savedPlacesApi: options.savedPlacesApi,
   });
   servers.push(server);
   await new Promise<void>((resolve, reject) => {
@@ -36,6 +38,19 @@ const acquiredResult: AnalysisResult = {
   places: [],
   processing: { extractionMethod: "url_metadata", durationMs: 10 },
   nextAction: "review",
+};
+
+const savedPlace: SavedPlace = {
+  userPlaceId: "user-place-1",
+  id: "place-1",
+  name: "Café Example",
+  address: "Rua Example, 1",
+  city: "São Paulo",
+  country: "BR",
+  provider: "google_places",
+  providerPlaceId: "ChIJexample",
+  status: "want_to_go",
+  favorite: false,
 };
 
 describe("Railway probe server", () => {
@@ -89,6 +104,45 @@ describe("Railway probe server", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ cache: "miss", analysisId: "analysis-1", replayed: false });
     expect(analyze).toHaveBeenCalledWith("https://vt.tiktok.com/example/", "key-1");
+  });
+
+  it("requires explicit confirmation for a verified analysis place and lists the saved library", async () => {
+    const confirm = vi.fn().mockResolvedValue(savedPlace);
+    const list = vi.fn().mockResolvedValue([savedPlace]);
+    const baseUrl = await startServer(
+      { execute: vi.fn() },
+      { probeToken: "test-token", apiToken: "api-token", savedPlacesApi: { confirm, list } },
+    );
+
+    await expect(fetch(`${baseUrl}/v1/places`).then((response) => response.status)).resolves.toBe(401);
+    await expect(fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token" } }).then((response) => response.json()))
+      .resolves.toEqual({ places: [savedPlace] });
+
+    const response = await fetch(`${baseUrl}/v1/analyses/analysis-1/places/place-1/save`, {
+      method: "POST",
+      headers: { Authorization: "Bearer api-token" },
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ place: savedPlace });
+    expect(confirm).toHaveBeenCalledWith("analysis-1", "place-1");
+  });
+
+  it("does not save a place that the repository cannot prove belongs to the analysis", async () => {
+    const baseUrl = await startServer(
+      { execute: vi.fn() },
+      {
+        probeToken: "test-token",
+        apiToken: "api-token",
+        savedPlacesApi: { confirm: vi.fn().mockRejectedValue(new AnalysisPlaceNotFoundError()), list: vi.fn() },
+      },
+    );
+
+    const response = await fetch(`${baseUrl}/v1/analyses/analysis-1/places/place-2/save`, {
+      method: "POST",
+      headers: { Authorization: "Bearer api-token" },
+    });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "analysis_place_not_found" });
   });
 
   it("returns an allowlisted acquisition result", async () => {
