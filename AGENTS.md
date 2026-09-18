@@ -2,11 +2,15 @@
 
 ## Current milestone
 
-M0 — AI Spike. Validate social URL -> evidence acquisition -> candidate extraction -> place resolution -> structured result before adding product infrastructure.
+M1 backend is complete and validated on Railway. M2 is the next milestone:
+turn the persisted TikTok flow into a small WebApp while replacing the
+single-owner deployment boundary with real user identity.
 
 ## Architecture rules
 
-- Keep M0 as a modular TypeScript CLI, not a WebApp.
+- Keep the core as a modular TypeScript monolith. M2 may add a WebApp, but do
+  not split web, API and workers into separate services before product metrics
+  justify it.
 - A narrow authenticated HTTP probe may validate deployment egress, but it must not become a general source-ingestion API.
 - Domain types must not depend on AI, social-network, or map-provider SDKs.
 - Treat LLM output as candidate evidence, never geographic truth.
@@ -19,6 +23,16 @@ M0 — AI Spike. Validate social URL -> evidence acquisition -> candidate extrac
 - Every AI call must be attributable to a model/prompt version and eventually expose token/cost/latency metrics.
 - Never commit API keys, media files, transcripts containing sensitive data, or generated provider credentials.
 
+## M2 starting boundary
+
+- Preserve the M1 cache, idempotency and explicit confirmation contracts when
+  introducing per-user identity.
+- Keep TikTok as the supported source path. The optional Instagram adapter must
+  continue to fail safely while its official professional-account integration
+  is not configured.
+- The WebApp may call a product API, but it must not receive provider secrets,
+  raw protected media or an ability to choose another user's scope.
+
 ## Priority
 
 1. Precision
@@ -26,6 +40,6 @@ M0 — AI Spike. Validate social URL -> evidence acquisition -> candidate extrac
 3. Latency
 4. Simplicity
 
-## M0 definition of done
+## Completed M0 definition of done
 
 Given a social URL, return a typed result containing source status, acquired evidence, extracted candidates, resolved places where possible, confidence, and a clear `insufficient_evidence` result when URL-only acquisition cannot proceed.

@@ -1,17 +1,4 @@
-import { z } from "zod";
-
-const ProbeResponseSchema = z.object({
-  status: z.enum(["completed", "insufficient_evidence", "needs_review", "failed"]),
-  source: z.object({
-    platform: z.literal("tiktok"),
-    canonicalUrl: z.string().url(),
-    contentId: z.string().regex(/^\d+$/),
-  }),
-  evidenceTypes: z.array(z.enum(["title", "description", "author", "thumbnail", "embed", "transcript", "page_metadata"])),
-  candidateCount: z.number().int().nonnegative(),
-  placeCount: z.number().int().nonnegative(),
-  extractionMethod: z.literal("url_metadata"),
-});
+import { hasExpectedTikTokEvidence, RailwayProbeResponseSchema } from "../application/railway-probe-contract.js";
 
 const baseUrl = process.env.SAVEPLACE_PROBE_URL?.trim();
 const probeToken = process.env.PROBE_TOKEN?.trim();
@@ -36,8 +23,8 @@ if (!response.ok) {
   throw new Error(`Railway probe returned HTTP ${response.status} (${error}).`);
 }
 
-const result = ProbeResponseSchema.parse(await response.json());
-if (result.status !== "needs_review" || !result.evidenceTypes.includes("description")) {
+const result = RailwayProbeResponseSchema.parse(await response.json());
+if (!hasExpectedTikTokEvidence(result)) {
   throw new Error("Railway probe did not acquire the expected TikTok URL evidence.");
 }
 
