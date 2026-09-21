@@ -179,10 +179,10 @@ M2: Railway -> Web/API + PostgreSQL
 Later: Web + API + worker + PostgreSQL + queue + observability
 ```
 
-The M2 sequence is: choose user identity, make saved places user-scoped, add a
-small WebApp for URL submission and explicit confirmation, then measure
-conversion, latency, cache rate and provider cost before introducing workers or
-queues.
+The M2 sequence, identity decision, optional TypeSafe evidence signal and
+independently shippable PRs are defined in the [M2 plan](M2.md). It keeps the
+existing place-verification rule intact while adding a browser-owned user scope
+and a small WebApp before introducing workers or queues.
 
 ## Portfolio evidence and limitations
 
