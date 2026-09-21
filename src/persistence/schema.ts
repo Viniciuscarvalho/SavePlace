@@ -31,6 +31,19 @@ export const users = pgTable("users", {
   ...timestampColumns,
 });
 
+/** An opaque browser token is stored only as a hash and resolves a private user scope. */
+export const sessions = pgTable("sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 128 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ...timestampColumns,
+}, (table) => [
+  uniqueIndex("sessions_token_hash_key").on(table.tokenHash),
+  index("sessions_user_id_idx").on(table.userId),
+  index("sessions_expires_at_idx").on(table.expiresAt),
+]);
+
 /** One canonical social source, independent from the URL aliases a user submitted. */
 export const sources = pgTable("sources", {
   id: uuid("id").defaultRandom().primaryKey(),

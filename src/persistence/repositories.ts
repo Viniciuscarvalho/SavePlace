@@ -1,4 +1,4 @@
-import { and, eq, lt, or } from "drizzle-orm";
+import { and, eq, gt, lt, or } from "drizzle-orm";
 import type { AnalysisResult } from "../domain/models.js";
 import {
   cacheableSource,
@@ -17,13 +17,14 @@ import type {
 } from "./idempotency.js";
 import type { SavePlaceDatabase } from "./database.js";
 import { mentionsForPersistence, providerPlaceIdentity, verifiedPlacesForPersistence } from "./analysis-place-persistence.js";
-import { idempotencyOperations, placeMentions, places, sourceAliases, sourceAnalyses, sources, userPlaces, users } from "./schema.js";
+import { idempotencyOperations, placeMentions, places, sessions, sourceAliases, sourceAnalyses, sources, userPlaces, users } from "./schema.js";
 import type {
   AnalysisPlaceLookup,
   SavedPlace as UserSavedPlace,
   SavedPlaceRepository,
   VerifiedAnalysisPlace,
 } from "../application/saved-place-service.js";
+import type { BrowserSessionRecord, BrowserSessionRepository } from "../application/browser-session-service.js";
 
 type DatabaseClient = SavePlaceDatabase;
 
@@ -53,7 +54,7 @@ function persistedPlaceId(provider: string, providerPlaceId: string, ids: Readon
   return id;
 }
 
-export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository {
+export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository, BrowserSessionRepository {
   constructor(private readonly db: DatabaseClient) {}
 
   async findCachedAnalysis(key: AnalysisCacheKey): Promise<CachedAnalysis | undefined> {
@@ -74,6 +75,26 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
       result: cached.result as AnalysisResult,
       verifiedPlaceReferences: await this.verifiedPlaceReferences(cached.analysisId),
     };
+  }
+
+  async findSessionUserId(tokenHash: string, now: Date): Promise<string | undefined> {
+    const [session] = await this.db
+      .select({ userId: sessions.userId })
+      .from(sessions)
+      .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, now)))
+      .limit(1);
+    return session?.userId;
+  }
+
+  async createSession(session: BrowserSessionRecord): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.insert(users).values({ id: session.userId }).onConflictDoNothing();
+      await tx.insert(sessions).values({
+        userId: session.userId,
+        tokenHash: session.tokenHash,
+        expiresAt: session.expiresAt,
+      });
+    });
   }
 
   async storeAnalysis(write: AnalysisCacheWrite): Promise<CachedAnalysis> {

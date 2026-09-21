@@ -85,20 +85,34 @@ M1 added the smallest durable product boundary:
 M1 intentionally has a static deployment token and a single configured owner.
 It is an implementation boundary, not end-user authentication.
 
+### M2.1 — private browser sessions
+
+M2.1 replaces the static owner boundary with an opaque browser session. The
+server creates a random token, stores only its SHA-256 hash in PostgreSQL and
+returns it in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie. A request derives
+its user on the server; it never accepts a user ID, bearer token or provider
+credential from the browser. The URL-analysis cache remains global, while
+idempotency operations and saved places are private to that session.
+
+`API_TOKEN` remains a temporary operational gate for the direct HTTP API until
+M2.7 supplies per-user cost limits. It is never sent to a browser; the future
+WebApp will call the application server with its already-resolved session.
+
 ## HTTP contract
 
 `GET /health` is public and returns only health plus safe configuration
-booleans. The M1 endpoints require `Authorization: Bearer <API_TOKEN>`.
+booleans. Product endpoints derive their scope from a server-managed browser
+session cookie.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /v1/analyses` | Analyze a TikTok URL. Requires `Idempotency-Key`; a new key may return a URL cache hit. |
 | `POST /v1/analyses/:analysisId/places/:placeId/save` | Explicitly save a provider-verified place linked to that analysis. |
-| `GET /v1/places` | Read the configured owner's saved library. |
+| `GET /v1/places` | Read the current browser session's saved library. |
 | `POST /internal/probes/tiktok` | Fixed-URL operational probe; requires `PROBE_TOKEN`, accepts no user URL. |
 
-The public API is intentionally narrow until M2 supplies a user-facing
-authentication and interaction model.
+The direct API remains intentionally narrow until the WebApp supplies the
+user-facing interaction model and M2.7 adds per-user cost limits.
 
 ## Operations
 
@@ -109,10 +123,9 @@ Copy `.env.example` to an ignored `.env`; no real key belongs in Git.
 | `OPENAI_API_KEY` | Optional structured extraction. |
 | `GOOGLE_MAPS_API_KEY` | Optional Google place verification. |
 | `DATABASE_URL` | PostgreSQL connection for persistence. On Railway, reference the Postgres service variable. |
-| `API_TOKEN` | Authenticates M1 API calls. |
-| `SAVEPLACE_OWNER_ID` | Server-owned M1 single-owner scope. |
+| `API_TOKEN` | Temporary server-side gate for direct product API calls until M2.7. |
 | `PROBE_TOKEN` | Authenticates the fixed Railway probe. |
-| `SAVEPLACE_PROBE_URL`, `SAVEPLACE_API_URL` | Trusted-terminal targets for smoke checks. |
+| `SAVEPLACE_PROBE_URL`, `SAVEPLACE_API_URL` | Trusted-terminal targets for probe and persisted-session smoke checks. |
 | `INSTAGRAM_OEMBED_ACCESS_TOKEN`, `INSTAGRAM_OEMBED_ENDPOINT`, `INSTAGRAM_OEMBED_TEST_URL` | Optional official Instagram oEmbed integration and its opt-in contract test. |
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Optional price from the active Google billing contract. Leave blank when unknown. |
 

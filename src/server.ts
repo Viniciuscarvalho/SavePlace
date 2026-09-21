@@ -11,6 +11,7 @@ import { AnalysisCache } from "./persistence/analysis-cache.js";
 import { IdempotentOperation, requestHash } from "./persistence/idempotency.js";
 import { AnalysisApiService } from "./application/analysis-api-service.js";
 import { SavedPlaceService } from "./application/saved-place-service.js";
+import { BrowserSessionService } from "./application/browser-session-service.js";
 
 function optionalEnvironment(name: string): string | undefined {
   const value = process.env[name]?.trim();
@@ -39,12 +40,12 @@ function createAnalysisApi(): {
   token: string;
   analysisService: AnalysisApiService;
   savedPlacesService: SavedPlaceService;
+  browserSessions: BrowserSessionService;
   close: () => Promise<void>;
 } | undefined {
   const apiToken = optionalEnvironment("API_TOKEN");
-  const ownerUserId = optionalEnvironment("SAVEPLACE_OWNER_ID");
   const databaseUrl = optionalEnvironment("DATABASE_URL");
-  if (!apiToken || !ownerUserId || !databaseUrl) return undefined;
+  if (!apiToken || !databaseUrl) return undefined;
 
   const database = createDatabase(databaseUrlFromEnvironment({ DATABASE_URL: databaseUrl }));
   const repository = new DrizzlePersistenceRepository(database.db);
@@ -54,7 +55,6 @@ function createAnalysisApi(): {
       analyzer,
       cache: new AnalysisCache(repository),
       idempotency: new IdempotentOperation(repository),
-      ownerUserId,
       pipelineVersion: "m1.4b-tiktok-url-v1",
       providerConfigFingerprint: requestHash({
         source: "tiktok_oembed",
@@ -62,7 +62,8 @@ function createAnalysisApi(): {
         placeProvider: googleApiKey ? "google_places_new" : "empty",
       }),
     }),
-    savedPlacesService: new SavedPlaceService({ repository, ownerUserId }),
+    savedPlacesService: new SavedPlaceService({ repository }),
+    browserSessions: new BrowserSessionService(repository),
     close: database.close,
   };
 }
@@ -78,6 +79,7 @@ const server = createProbeServer({
     apiToken: analysisApi.token,
     analysisApi: analysisApi.analysisService,
     savedPlacesApi: analysisApi.savedPlacesService,
+    browserSessions: analysisApi.browserSessions,
   } : {}),
 });
 const port = portFromEnvironment();

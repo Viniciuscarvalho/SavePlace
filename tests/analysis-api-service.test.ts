@@ -70,14 +70,14 @@ describe("AnalysisApiService", () => {
       analyzer,
       cache: new AnalysisCache(new CacheRepository()),
       idempotency: new IdempotentOperation(new IdempotencyRepositoryMemory()),
-      ownerUserId: "local-owner",
       pipelineVersion: "pipeline-v1",
       providerConfigFingerprint: "providers-v1",
     });
 
-    await expect(service.analyze("https://vt.tiktok.com/example/", "first")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "miss" } });
-    await expect(service.analyze("https://vt.tiktok.com/example/", "first")).resolves.toMatchObject({ replayed: true, status: 200, body: { cache: "miss" } });
-    await expect(service.analyze("https://vt.tiktok.com/example/", "second")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "hit" } });
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/example/", "first")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "miss" } });
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/example/", "first")).resolves.toMatchObject({ replayed: true, status: 200, body: { cache: "miss" } });
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/example/", "second")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "hit" } });
+    await expect(service.analyze("user-b", "https://vt.tiktok.com/example/", "first")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "hit" } });
 
     expect(analyzer.execute).toHaveBeenCalledTimes(1);
   });

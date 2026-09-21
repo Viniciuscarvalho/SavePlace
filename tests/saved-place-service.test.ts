@@ -37,37 +37,37 @@ class FakeSavedPlaceRepository implements SavedPlaceRepository {
 }
 
 describe("SavedPlaceService", () => {
-  it("saves only a verified place linked to the requested analysis for the server-owned user", async () => {
+  it("saves only a verified place linked to the requested analysis for the resolved user", async () => {
     const repository = new FakeSavedPlaceRepository();
-    const service = new SavedPlaceService({ repository, ownerUserId: "local-owner" });
+    const service = new SavedPlaceService({ repository });
 
-    await expect(service.confirm("analysis-1", "place-1")).resolves.toEqual(savedPlace);
-    expect(repository.upsertUserPlace).toHaveBeenCalledWith("local-owner", verifiedPlace);
+    await expect(service.confirm("user-a", "analysis-1", "place-1")).resolves.toEqual(savedPlace);
+    expect(repository.upsertUserPlace).toHaveBeenCalledWith("user-a", verifiedPlace);
   });
 
   it("does not save a place outside the analysis", async () => {
     const repository = new FakeSavedPlaceRepository();
     repository.lookup = undefined;
-    const service = new SavedPlaceService({ repository, ownerUserId: "local-owner" });
+    const service = new SavedPlaceService({ repository });
 
-    await expect(service.confirm("analysis-1", "other-place")).rejects.toBeInstanceOf(AnalysisPlaceNotFoundError);
+    await expect(service.confirm("user-a", "analysis-1", "other-place")).rejects.toBeInstanceOf(AnalysisPlaceNotFoundError);
     expect(repository.upsertUserPlace).not.toHaveBeenCalled();
   });
 
   it("does not save an unresolved analysis mention", async () => {
     const repository = new FakeSavedPlaceRepository();
     repository.lookup = { status: "unverified" };
-    const service = new SavedPlaceService({ repository, ownerUserId: "local-owner" });
+    const service = new SavedPlaceService({ repository });
 
-    await expect(service.confirm("analysis-1", "mention-without-provider-place")).rejects.toBeInstanceOf(AnalysisPlaceUnverifiedError);
+    await expect(service.confirm("user-a", "analysis-1", "mention-without-provider-place")).rejects.toBeInstanceOf(AnalysisPlaceUnverifiedError);
     expect(repository.upsertUserPlace).not.toHaveBeenCalled();
   });
 
-  it("lists only the server-owned user's library", async () => {
+  it("lists only the resolved user's library", async () => {
     const repository = new FakeSavedPlaceRepository();
-    const service = new SavedPlaceService({ repository, ownerUserId: "local-owner" });
+    const service = new SavedPlaceService({ repository });
 
-    await expect(service.list()).resolves.toEqual([savedPlace]);
-    expect(repository.listUserPlaces).toHaveBeenCalledWith("local-owner");
+    await expect(service.list("user-a")).resolves.toEqual([savedPlace]);
+    expect(repository.listUserPlaces).toHaveBeenCalledWith("user-a");
   });
 });

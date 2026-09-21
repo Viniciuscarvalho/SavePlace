@@ -58,23 +58,24 @@ export async function runM1DeploymentCheck(options: {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   if (!options.apiToken.trim()) throw new M1DeploymentCheckError("API_TOKEN must be set.");
   const fetchImpl = options.fetchImpl ?? fetch;
+  const session: RequestSession = {};
   const requestId = options.idempotencyKeyFactory?.() ?? randomUUID();
   const sourceUrl = options.sourceUrl ?? M1_SMOKE_TIKTOK_URL;
 
   const health = HealthResponseSchema.parse(await requestJson(fetchImpl, new URL("/health", baseUrl)));
   if (!health.analysisApiConfigured) {
-    throw new M1DeploymentCheckError("Railway health is OK but the analysis API is unavailable. Set DATABASE_URL, API_TOKEN and SAVEPLACE_OWNER_ID in the application service, then redeploy.");
+    throw new M1DeploymentCheckError("Railway health is OK but the analysis API is unavailable. Set DATABASE_URL in the application service, apply migrations, then redeploy.");
   }
 
-  const first = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-${requestId}`));
+  const first = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-${requestId}`, session));
   if (first.replayed) throw new M1DeploymentCheckError("The first M1 smoke request unexpectedly replayed an idempotent response.");
 
-  const replay = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-${requestId}`));
+  const replay = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-${requestId}`, session));
   if (!replay.replayed || replay.analysisId !== first.analysisId) {
     throw new M1DeploymentCheckError("The same idempotency key did not replay the original analysis response.");
   }
 
-  const cached = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-cache-${requestId}`));
+  const cached = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-cache-${requestId}`, session));
   if (cached.replayed || cached.cache !== "hit" || cached.analysisId !== first.analysisId) {
     throw new M1DeploymentCheckError("A new idempotency key did not return the cached analysis response.");
   }
@@ -88,16 +89,14 @@ export async function runM1DeploymentCheck(options: {
   const saved = SavedPlaceResponseSchema.parse(await requestJson(fetchImpl, saveUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${options.apiToken}` },
-  }));
+  }, session));
   if (saved.place.id !== reference.placeId) {
     throw new M1DeploymentCheckError("The saved-place response does not match the verified analysis place.");
   }
 
-  const library = SavedPlacesResponseSchema.parse(await requestJson(fetchImpl, new URL("/v1/places", baseUrl), {
-    headers: { Authorization: `Bearer ${options.apiToken}` },
-  }));
+  const library = SavedPlacesResponseSchema.parse(await requestJson(fetchImpl, new URL("/v1/places", baseUrl), { headers: { Authorization: `Bearer ${options.apiToken}` } }, session));
   if (!library.places.some((place) => place.userPlaceId === saved.place.userPlaceId && place.id === reference.placeId)) {
-    throw new M1DeploymentCheckError("The confirmed place was not present in the server-owned saved-place library.");
+    throw new M1DeploymentCheckError("The confirmed place was not present in the browser-session saved-place library.");
   }
 
   return {
@@ -121,7 +120,9 @@ function normalizeBaseUrl(value: string): URL {
   }
 }
 
-async function postAnalysis(fetchImpl: typeof fetch, baseUrl: URL, apiToken: string, sourceUrl: string, idempotencyKey: string): Promise<unknown> {
+type RequestSession = { cookie?: string };
+
+async function postAnalysis(fetchImpl: typeof fetch, baseUrl: URL, apiToken: string, sourceUrl: string, idempotencyKey: string, session: RequestSession): Promise<unknown> {
   return requestJson(fetchImpl, new URL("/v1/analyses", baseUrl), {
     method: "POST",
     headers: {
@@ -130,16 +131,21 @@ async function postAnalysis(fetchImpl: typeof fetch, baseUrl: URL, apiToken: str
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({ url: sourceUrl }),
-  });
+  }, session);
 }
 
-async function requestJson(fetchImpl: typeof fetch, url: URL, init: RequestInit = {}): Promise<unknown> {
+async function requestJson(fetchImpl: typeof fetch, url: URL, init: RequestInit = {}, session?: RequestSession): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetchImpl(url, init);
+    const headers = new Headers(init.headers);
+    if (session?.cookie) headers.set("Cookie", session.cookie);
+    response = await fetchImpl(url, { ...init, headers });
   } catch {
     throw new M1DeploymentCheckError(`Unable to reach ${url.origin}.`);
   }
+  const setCookie = response.headers.get("set-cookie");
+  const cookie = setCookie?.split(";", 1)[0];
+  if (session && cookie) session.cookie = cookie;
   const body: unknown = await response.json().catch(() => ({}));
   if (response.ok) return body;
   const code = typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"

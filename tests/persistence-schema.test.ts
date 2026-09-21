@@ -8,6 +8,7 @@ import {
   sourceAliases,
   sourceAnalyses,
   sources,
+  sessions,
   userPlaces,
 } from "../src/persistence/schema.js";
 
@@ -19,12 +20,14 @@ describe("M1 persistence schema", () => {
     expect(getTableName(places)).toBe("places");
     expect(getTableName(userPlaces)).toBe("user_places");
     expect(getTableName(idempotencyOperations)).toBe("idempotency_operations");
+    expect(getTableName(sessions)).toBe("sessions");
 
     expect(getTableColumns(sourceAliases)).toHaveProperty("normalizedUrl");
     expect(getTableColumns(sourceAnalyses)).toHaveProperty("providerConfigFingerprint");
     expect(getTableColumns(places)).toHaveProperty("providerPlaceId");
     expect(getTableColumns(userPlaces)).toHaveProperty("placeId");
     expect(getTableColumns(idempotencyOperations)).toHaveProperty("requestHash");
+    expect(getTableColumns(sessions)).toHaveProperty("tokenHash");
     expect(getTableConfig(sources).indexes.map((index) => index.config.name))
       .toContain("sources_platform_canonical_url_key");
   });
