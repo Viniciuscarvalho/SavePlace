@@ -76,6 +76,7 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
 | Looking for | Start here |
 | --- | --- |
 | Product story, architecture, API contract, provider boundaries and M2 direction | [Project guide](docs/PROJECT.md) |
+| M2 WebApp scope, ADR and independently shippable PRs | [M2 plan](docs/M2.md) |
 | M0 experiment, evidence-acquisition contract and evaluation rationale | [M0 spike](docs/M0.md) |
 | Adding an evaluation URL | [Evaluation case guide](evals/cases/README.md) |
 | Contributing safely | [Contributing](CONTRIBUTING.md) |

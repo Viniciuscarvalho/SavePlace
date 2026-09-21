@@ -32,6 +32,9 @@ single-owner deployment boundary with real user identity.
   is not configured.
 - The WebApp may call a product API, but it must not receive provider secrets,
   raw protected media or an ability to choose another user's scope.
+- TypeSafe may only produce a typed, confidence-gated candidate/evidence
+  support signal. It must not verify places, authorize a request or trigger a
+  save without the user's explicit confirmation.
 
 ## Priority
 
