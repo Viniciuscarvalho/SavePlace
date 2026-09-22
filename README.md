@@ -12,10 +12,10 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.1 browser-session foundation.** TikTok acquisition, evidence-bound
-> extraction, Google place verification, PostgreSQL persistence, cache,
-> idempotency and explicit saved-place confirmation have been validated on
-> Railway. The WebApp is the next milestone.
+> **Status — M2.2 private-analysis foundation.** TikTok acquisition,
+> evidence-bound extraction, Google place verification, PostgreSQL persistence,
+> cache, idempotency and explicit saved-place confirmation have been validated
+> on Railway. The WebApp is the next milestone.
 
 ## The promise
 
@@ -39,10 +39,11 @@ location.
   and estimated cost.
 - Google Places verifies geographic identity; verified places are deduplicated
   by provider identity.
-- PostgreSQL persists analysis, candidates, cache/idempotency state and a
-  confirmed saved-place library isolated by an opaque browser session.
-- Railway smoke checks exercise deployed acquisition and the complete M1
-  persistence contract.
+- PostgreSQL keeps the source-analysis cache reusable, while analysis history,
+  idempotency state and the confirmed saved-place library remain private to an
+  opaque browser session.
+- Railway smoke checks exercise deployed acquisition plus the private analysis
+  read, replay, cache, explicit save and library contracts.
 
 Instagram is deliberately not part of the supported product path yet: its
 official API requires a professional-account setup. The adapter fails safely

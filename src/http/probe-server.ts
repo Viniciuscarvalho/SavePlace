@@ -1,8 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { z } from "zod";
 import type { AnalysisResult } from "../domain/models.js";
 import { IdempotencyConflictError, IdempotencyInProgressError } from "../persistence/idempotency.js";
-import type { AnalysisApiResponse } from "../application/analysis-api-service.js";
+import type { AnalysisApiResponse, AnalysisReadResponse } from "../application/analysis-api-service.js";
 import {
   AnalysisPlaceNotFoundError,
   AnalysisPlaceUnverifiedError,
@@ -11,6 +12,7 @@ import {
 import type { BrowserSessionService, ResolvedBrowserSession } from "../application/browser-session-service.js";
 
 export const TIKTOK_ACCEPTANCE_URL = "https://vt.tiktok.com/ZSq4UprxR/";
+const AnalysisIdSchema = z.string().uuid();
 
 export interface SourceAnalyzer {
   execute(input: string): Promise<AnalysisResult>;
@@ -18,6 +20,7 @@ export interface SourceAnalyzer {
 
 export interface AnalysisApi {
   analyze(userId: string, inputUrl: string, idempotencyKey: string): Promise<AnalysisApiResponse>;
+  get(userId: string, analysisId: string): Promise<AnalysisReadResponse | undefined>;
 }
 
 export interface SavedPlacesApi {
@@ -88,6 +91,17 @@ export function createProbeServer(options: ProbeServerOptions): Server {
 
     if (url.pathname === "/v1/analyses") {
       await handleAnalysisApi(request, response, options.analysisApi, options.browserSessions, apiToken);
+      return;
+    }
+
+    const analysisMatch = /^\/v1\/analyses\/([^/]+)$/.exec(url.pathname);
+    if (analysisMatch) {
+      const analysisId = AnalysisIdSchema.safeParse(analysisMatch[1]);
+      if (!analysisId.success) {
+        writeJson(response, 404, { error: "not_found" });
+        return;
+      }
+      await handleAnalysisReadApi(request, response, options.analysisApi, options.browserSessions, apiToken, analysisId.data);
       return;
     }
 
@@ -169,6 +183,39 @@ async function handleAnalysisApi(request: IncomingMessage, response: ServerRespo
     if (error instanceof IdempotencyConflictError) writeJson(response, 409, { error: "idempotency_conflict" }, sessionHeaders(session));
     else if (error instanceof IdempotencyInProgressError) writeJson(response, 409, { error: "request_in_progress" }, sessionHeaders(session));
     else writeJson(response, 502, { error: "analysis_failed" }, sessionHeaders(session));
+  }
+}
+
+async function handleAnalysisReadApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  api: AnalysisApi | undefined,
+  browserSessions: BrowserSessionService | undefined,
+  apiToken: string | undefined,
+  analysisId: string,
+): Promise<void> {
+  if (request.method !== "GET") {
+    writeJson(response, 405, { error: "method_not_allowed" }, { allow: "GET" });
+    return;
+  }
+  if (!api || !browserSessions || !apiToken) {
+    writeJson(response, 503, { error: "analysis_api_unavailable" });
+    return;
+  }
+  if (!hasValidBearerToken(request, apiToken)) {
+    writeJson(response, 401, { error: "unauthorized" });
+    return;
+  }
+  const session = await resolveBrowserSession(request, browserSessions);
+  try {
+    const output = await api.get(session.userId, analysisId);
+    if (!output) {
+      writeJson(response, 404, { error: "analysis_not_found" }, sessionHeaders(session));
+      return;
+    }
+    writeJson(response, output.status, output.body, sessionHeaders(session));
+  } catch {
+    writeJson(response, 502, { error: "analysis_read_failed" }, sessionHeaders(session));
   }
 }
 

@@ -31,7 +31,7 @@ export type SavedPlace = VerifiedAnalysisPlace & {
  * an arbitrary place ID submitted by a client.
  */
 export interface SavedPlaceRepository {
-  findAnalysisPlace(analysisId: string, placeId: string): Promise<AnalysisPlaceLookup | undefined>;
+  findAnalysisPlace(userId: string, analysisId: string, placeId: string): Promise<AnalysisPlaceLookup | undefined>;
   upsertUserPlace(userId: string, place: VerifiedAnalysisPlace): Promise<SavedPlace>;
   listUserPlaces(userId: string): Promise<SavedPlace[]>;
 }
@@ -57,7 +57,7 @@ export class SavedPlaceService {
 
   async confirm(userId: string, analysisId: string, placeId: string): Promise<SavedPlace> {
     if (!userId.trim() || userId.length > 128) throw new Error("userId must be 1-128 characters.");
-    const analysisPlace = await this.options.repository.findAnalysisPlace(analysisId, placeId);
+    const analysisPlace = await this.options.repository.findAnalysisPlace(userId, analysisId, placeId);
     if (!analysisPlace) throw new AnalysisPlaceNotFoundError();
     if (analysisPlace.status !== "verified") throw new AnalysisPlaceUnverifiedError();
 

@@ -26,6 +26,7 @@ describe("M1 deployment check", () => {
       .mockResolvedValueOnce(response(analysis("miss", false), 200, { "set-cookie": "saveplace_session=session-a; Path=/; HttpOnly" }))
       .mockResolvedValueOnce(response(analysis("miss", true)))
       .mockResolvedValueOnce(response(analysis("hit", false)))
+      .mockResolvedValueOnce(response({ analysisId, verifiedPlaceReferences: [{ placeId, provider: "google_places", providerPlaceId: "ChIJexample" }], result: { source: { platform: "tiktok" } } }))
       .mockResolvedValueOnce(response({ place: { id: placeId, userPlaceId } }))
       .mockResolvedValueOnce(response({ places: [{ id: placeId, userPlaceId }] }));
 
@@ -44,7 +45,7 @@ describe("M1 deployment check", () => {
       userPlaceId,
     });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(fetchImpl).toHaveBeenCalledTimes(7);
     const replayHeaders = new Headers(fetchImpl.mock.calls[2]?.[1]?.headers);
     const cachedHeaders = new Headers(fetchImpl.mock.calls[3]?.[1]?.headers);
     expect(replayHeaders.get("idempotency-key")).toBe("m1-smoke-test");
@@ -57,7 +58,8 @@ describe("M1 deployment check", () => {
       .mockResolvedValueOnce(response({ status: "ok", analysisApiConfigured: true }))
       .mockResolvedValueOnce(response(analysis("hit", false, [])))
       .mockResolvedValueOnce(response(analysis("hit", true, [])))
-      .mockResolvedValueOnce(response(analysis("hit", false, [])));
+      .mockResolvedValueOnce(response(analysis("hit", false, [])))
+      .mockResolvedValueOnce(response({ analysisId, verifiedPlaceReferences: [], result: { source: { platform: "tiktok" } } }));
 
     await expect(runM1DeploymentCheck({
       baseUrl: "https://saveplace.example",
@@ -65,6 +67,6 @@ describe("M1 deployment check", () => {
       idempotencyKeyFactory: () => "test",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     })).rejects.toThrow("no provider-verified place");
-    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
   });
 });

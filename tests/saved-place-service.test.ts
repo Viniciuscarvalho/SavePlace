@@ -28,12 +28,9 @@ const savedPlace: SavedPlace = {
 
 class FakeSavedPlaceRepository implements SavedPlaceRepository {
   lookup: AnalysisPlaceLookup | undefined = { status: "verified", place: verifiedPlace };
+  readonly findAnalysisPlace = vi.fn(async () => this.lookup);
   readonly upsertUserPlace = vi.fn(async () => savedPlace);
   readonly listUserPlaces = vi.fn(async () => [savedPlace]);
-
-  async findAnalysisPlace(): Promise<AnalysisPlaceLookup | undefined> {
-    return this.lookup;
-  }
 }
 
 describe("SavedPlaceService", () => {
@@ -42,6 +39,7 @@ describe("SavedPlaceService", () => {
     const service = new SavedPlaceService({ repository });
 
     await expect(service.confirm("user-a", "analysis-1", "place-1")).resolves.toEqual(savedPlace);
+    expect(repository.findAnalysisPlace).toHaveBeenCalledWith("user-a", "analysis-1", "place-1");
     expect(repository.upsertUserPlace).toHaveBeenCalledWith("user-a", verifiedPlace);
   });
 

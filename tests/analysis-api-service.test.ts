@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AnalysisResult } from "../src/domain/models.js";
-import { AnalysisApiService } from "../src/application/analysis-api-service.js";
+import { AnalysisApiService, type UserAnalysisRepository } from "../src/application/analysis-api-service.js";
 import { AnalysisCache, type AnalysisCacheKey, type AnalysisCacheRepository, type AnalysisCacheWrite, type CachedAnalysis } from "../src/persistence/analysis-cache.js";
-import { IdempotentOperation, type IdempotencyClaim, type IdempotencyRepository, type IdempotencyRequest, type StoredIdempotencyResponse } from "../src/persistence/idempotency.js";
+import { IdempotentOperation, requestHash, type IdempotencyClaim, type IdempotencyRepository, type IdempotencyRequest, type StoredIdempotencyResponse } from "../src/persistence/idempotency.js";
+
+const analysisId = "00000000-0000-4000-8000-000000000001";
 
 const result: AnalysisResult = {
   status: "needs_review",
@@ -30,7 +32,7 @@ class CacheRepository implements AnalysisCacheRepository {
   }
 
   async storeAnalysis(write: AnalysisCacheWrite): Promise<CachedAnalysis> {
-    const stored = { analysisId: "analysis-1", sourceId: "source-1", result: write.result, verifiedPlaceReferences: [] };
+    const stored = { analysisId, sourceId: "source-1", result: write.result, verifiedPlaceReferences: [] };
     this.entries.set(this.key(write), stored);
     return stored;
   }
@@ -63,13 +65,31 @@ class IdempotencyRepositoryMemory implements IdempotencyRepository {
   }
 }
 
+class UserAnalysisRepositoryMemory implements UserAnalysisRepository {
+  readonly links = new Set<string>();
+  constructor(private readonly cache: CacheRepository) {}
+
+  async linkUserToAnalysis(userId: string, analysisId: string): Promise<void> {
+    this.links.add(`${userId}:${analysisId}`);
+  }
+
+  async findAnalysisForUser(userId: string, analysisId: string): Promise<CachedAnalysis | undefined> {
+    if (!this.links.has(`${userId}:${analysisId}`)) return undefined;
+    return [...this.cache.entries.values()].find((analysis) => analysis.analysisId === analysisId);
+  }
+}
+
 describe("AnalysisApiService", () => {
   it("replays an idempotent request and uses the URL cache for a new key", async () => {
     const analyzer = { execute: vi.fn().mockResolvedValue(result) };
+    const cacheRepository = new CacheRepository();
+    const userAnalyses = new UserAnalysisRepositoryMemory(cacheRepository);
+    const idempotencyRepository = new IdempotencyRepositoryMemory();
     const service = new AnalysisApiService({
       analyzer,
-      cache: new AnalysisCache(new CacheRepository()),
-      idempotency: new IdempotentOperation(new IdempotencyRepositoryMemory()),
+      cache: new AnalysisCache(cacheRepository),
+      idempotency: new IdempotentOperation(idempotencyRepository),
+      userAnalyses,
       pipelineVersion: "pipeline-v1",
       providerConfigFingerprint: "providers-v1",
     });
@@ -79,6 +99,19 @@ describe("AnalysisApiService", () => {
     await expect(service.analyze("user-a", "https://vt.tiktok.com/example/", "second")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "hit" } });
     await expect(service.analyze("user-b", "https://vt.tiktok.com/example/", "first")).resolves.toMatchObject({ replayed: false, status: 200, body: { cache: "hit" } });
 
+    await expect(service.get("user-a", analysisId)).resolves.toMatchObject({ status: 200, body: { analysisId } });
+    await expect(service.get("user-b", analysisId)).resolves.toMatchObject({ status: 200, body: { analysisId } });
+    await expect(service.get("user-c", analysisId)).resolves.toBeUndefined();
+
+    idempotencyRepository.entries.set(`user-c:legacy`, {
+      requestHash: requestHash({ inputUrl: "https://vt.tiktok.com/example/" }),
+      state: "completed",
+      response: { responseStatus: 200, responseBody: { analysisId } },
+    });
+    await expect(service.analyze("user-c", "https://vt.tiktok.com/example/", "legacy")).resolves.toMatchObject({ replayed: true, status: 200 });
+    await expect(service.get("user-c", analysisId)).resolves.toMatchObject({ status: 200, body: { analysisId } });
+
     expect(analyzer.execute).toHaveBeenCalledTimes(1);
+    expect(userAnalyses.links).toEqual(new Set([`user-a:${analysisId}`, `user-b:${analysisId}`, `user-c:${analysisId}`]));
   });
 });

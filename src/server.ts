@@ -55,6 +55,7 @@ function createAnalysisApi(): {
       analyzer,
       cache: new AnalysisCache(repository),
       idempotency: new IdempotentOperation(repository),
+      userAnalyses: repository,
       pipelineVersion: "m1.4b-tiktok-url-v1",
       providerConfigFingerprint: requestHash({
         source: "tiktok_oembed",
