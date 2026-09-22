@@ -18,16 +18,16 @@ export class AnalysisApiService {
       analyzer: AnalysisExecutor;
       cache: AnalysisCache;
       idempotency: IdempotentOperation;
-      ownerUserId: string;
       pipelineVersion: string;
       providerConfigFingerprint: string;
       idempotencyTtlMs?: number;
     },
   ) {}
 
-  async analyze(inputUrl: string, idempotencyKey: string): Promise<AnalysisApiResponse> {
+  async analyze(userId: string, inputUrl: string, idempotencyKey: string): Promise<AnalysisApiResponse> {
+    if (!userId.trim() || userId.length > 128) throw new Error("userId must be 1-128 characters.");
     const request = {
-      userId: this.options.ownerUserId,
+      userId,
       idempotencyKey,
       requestHash: requestHash({ inputUrl }),
       expiresAt: new Date(Date.now() + (this.options.idempotencyTtlMs ?? 86_400_000)),

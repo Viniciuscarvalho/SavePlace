@@ -2,6 +2,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResult } from "../src/domain/models.js";
 import { AnalysisPlaceNotFoundError, type SavedPlace } from "../src/application/saved-place-service.js";
+import { BrowserSessionService, type BrowserSessionRecord, type BrowserSessionRepository } from "../src/application/browser-session-service.js";
 import { createProbeServer, type AnalysisApi, type SavedPlacesApi, type SourceAnalyzer } from "../src/http/probe-server.js";
 
 const servers: ReturnType<typeof createProbeServer>[] = [];
@@ -10,13 +11,36 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))));
 });
 
-async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi; savedPlacesApi?: SavedPlacesApi } = { probeToken: "test-token" }): Promise<string> {
+class MemorySessionRepository implements BrowserSessionRepository {
+  readonly sessions = new Map<string, BrowserSessionRecord>();
+
+  async findSessionUserId(tokenHash: string, now: Date): Promise<string | undefined> {
+    const session = this.sessions.get(tokenHash);
+    return session && session.expiresAt > now ? session.userId : undefined;
+  }
+
+  async createSession(session: BrowserSessionRecord): Promise<void> {
+    this.sessions.set(session.tokenHash, session);
+  }
+}
+
+function browserSessions(): BrowserSessionService {
+  const repository = new MemorySessionRepository();
+  let sequence = 0;
+  return new BrowserSessionService(repository, {
+    tokenFactory: () => `${++sequence}`.padStart(43, "0"),
+    userIdFactory: () => `browser-user-${sequence}`,
+  });
+}
+
+async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi; savedPlacesApi?: SavedPlacesApi; browserSessions?: BrowserSessionService } = { probeToken: "test-token" }): Promise<string> {
   const server = createProbeServer({
     analyzer,
     probeToken: options.probeToken,
     apiToken: options.apiToken,
     analysisApi: options.analysisApi,
     savedPlacesApi: options.savedPlacesApi,
+    browserSessions: options.browserSessions,
   });
   servers.push(server);
   await new Promise<void>((resolve, reject) => {
@@ -84,15 +108,16 @@ describe("Railway probe server", () => {
     expect(response.headers.get("allow")).toBe("POST");
   });
 
-  it("protects the analysis endpoint, requires idempotency, and returns the service result", async () => {
+  it("resolves a private browser session, requires idempotency, and returns the service result", async () => {
     const analyze = vi.fn().mockResolvedValue({
       replayed: false,
       status: 200,
       body: { cache: "miss", analysisId: "analysis-1", result: acquiredResult },
     });
-    const baseUrl = await startServer({ execute: vi.fn() }, { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze } });
+    const baseUrl = await startServer({ execute: vi.fn() }, { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze }, browserSessions: browserSessions() });
 
-    await expect(fetch(`${baseUrl}/v1/analyses`, { method: "POST" }).then((response) => response.status)).resolves.toBe(401);
+    await expect(fetch(`${baseUrl}/v1/analyses`, { method: "POST" }).then((response) => response.status))
+      .resolves.toBe(401);
     await expect(fetch(`${baseUrl}/v1/analyses`, { method: "POST", headers: { Authorization: "Bearer api-token" } }).then((response) => response.json()))
       .resolves.toEqual({ error: "idempotency_key_required" });
     const response = await fetch(`${baseUrl}/v1/analyses`, {
@@ -102,8 +127,9 @@ describe("Railway probe server", () => {
     });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly; Secure; SameSite=Lax");
     await expect(response.json()).resolves.toMatchObject({ cache: "miss", analysisId: "analysis-1", replayed: false });
-    expect(analyze).toHaveBeenCalledWith("https://vt.tiktok.com/example/", "key-1");
+    expect(analyze).toHaveBeenCalledWith("browser-user-0", "https://vt.tiktok.com/example/", "key-1");
   });
 
   it("requires explicit confirmation for a verified analysis place and lists the saved library", async () => {
@@ -111,20 +137,50 @@ describe("Railway probe server", () => {
     const list = vi.fn().mockResolvedValue([savedPlace]);
     const baseUrl = await startServer(
       { execute: vi.fn() },
-      { probeToken: "test-token", apiToken: "api-token", savedPlacesApi: { confirm, list } },
+      { probeToken: "test-token", apiToken: "api-token", savedPlacesApi: { confirm, list }, browserSessions: browserSessions() },
     );
 
-    await expect(fetch(`${baseUrl}/v1/places`).then((response) => response.status)).resolves.toBe(401);
-    await expect(fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token" } }).then((response) => response.json()))
-      .resolves.toEqual({ places: [savedPlace] });
+    const libraryResponse = await fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token" } });
+    const cookie = libraryResponse.headers.get("set-cookie");
+    await expect(libraryResponse.json()).resolves.toEqual({ places: [savedPlace] });
+    expect(list).toHaveBeenCalledWith("browser-user-0");
 
     const response = await fetch(`${baseUrl}/v1/analyses/analysis-1/places/place-1/save`, {
       method: "POST",
-      headers: { Authorization: "Bearer api-token" },
+      headers: { Authorization: "Bearer api-token", Cookie: cookie! },
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ place: savedPlace });
-    expect(confirm).toHaveBeenCalledWith("analysis-1", "place-1");
+    expect(confirm).toHaveBeenCalledWith("browser-user-0", "analysis-1", "place-1");
+  });
+
+  it("does not share an idempotency scope or library between browser sessions", async () => {
+    const analyze = vi.fn().mockResolvedValue({ replayed: false, status: 200, body: { cache: "hit", analysisId: "analysis-1", result: acquiredResult } });
+    const list = vi.fn().mockResolvedValue([]);
+    const baseUrl = await startServer(
+      { execute: vi.fn() },
+      { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze }, savedPlacesApi: { confirm: vi.fn(), list }, browserSessions: browserSessions() },
+    );
+
+    const first = await fetch(`${baseUrl}/v1/analyses`, {
+      method: "POST",
+      headers: { Authorization: "Bearer api-token", "Idempotency-Key": "same-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://vt.tiktok.com/example/" }),
+    });
+    const firstCookie = first.headers.get("set-cookie");
+    const second = await fetch(`${baseUrl}/v1/analyses`, {
+      method: "POST",
+      headers: { Authorization: "Bearer api-token", "Idempotency-Key": "same-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://vt.tiktok.com/example/" }),
+    });
+    const secondCookie = second.headers.get("set-cookie");
+    await fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token", Cookie: firstCookie! } });
+    await fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token", Cookie: secondCookie! } });
+
+    expect(analyze).toHaveBeenNthCalledWith(1, "browser-user-0", "https://vt.tiktok.com/example/", "same-key");
+    expect(analyze).toHaveBeenNthCalledWith(2, "browser-user-1", "https://vt.tiktok.com/example/", "same-key");
+    expect(list).toHaveBeenNthCalledWith(1, "browser-user-0");
+    expect(list).toHaveBeenNthCalledWith(2, "browser-user-1");
   });
 
   it("does not save a place that the repository cannot prove belongs to the analysis", async () => {
@@ -134,6 +190,7 @@ describe("Railway probe server", () => {
         probeToken: "test-token",
         apiToken: "api-token",
         savedPlacesApi: { confirm: vi.fn().mockRejectedValue(new AnalysisPlaceNotFoundError()), list: vi.fn() },
+        browserSessions: browserSessions(),
       },
     );
 

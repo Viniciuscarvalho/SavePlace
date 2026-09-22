@@ -12,7 +12,7 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M1 backend complete.** TikTok acquisition, evidence-bound
+> **Status — M2.1 browser-session foundation.** TikTok acquisition, evidence-bound
 > extraction, Google place verification, PostgreSQL persistence, cache,
 > idempotency and explicit saved-place confirmation have been validated on
 > Railway. The WebApp is the next milestone.
@@ -40,7 +40,7 @@ location.
 - Google Places verifies geographic identity; verified places are deduplicated
   by provider identity.
 - PostgreSQL persists analysis, candidates, cache/idempotency state and a
-  confirmed single-owner saved-place library.
+  confirmed saved-place library isolated by an opaque browser session.
 - Railway smoke checks exercise deployed acquisition and the complete M1
   persistence contract.
 
@@ -76,7 +76,7 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
 | Looking for | Start here |
 | --- | --- |
 | Product story, architecture, API contract, provider boundaries and M2 direction | [Project guide](docs/PROJECT.md) |
-| M2 WebApp scope, ADR and independently shippable PRs | [M2 plan](docs/M2.md) |
+| M2 WebApp scope and independently shippable PRs | [M2 plan](docs/M2.md) |
 | M0 experiment, evidence-acquisition contract and evaluation rationale | [M0 spike](docs/M0.md) |
 | Adding an evaluation URL | [Evaluation case guide](evals/cases/README.md) |
 | Contributing safely | [Contributing](CONTRIBUTING.md) |

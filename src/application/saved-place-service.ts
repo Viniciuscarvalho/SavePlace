@@ -52,19 +52,20 @@ export class SavedPlaceService {
   constructor(
     private readonly options: {
       repository: SavedPlaceRepository;
-      ownerUserId: string;
     },
   ) {}
 
-  async confirm(analysisId: string, placeId: string): Promise<SavedPlace> {
+  async confirm(userId: string, analysisId: string, placeId: string): Promise<SavedPlace> {
+    if (!userId.trim() || userId.length > 128) throw new Error("userId must be 1-128 characters.");
     const analysisPlace = await this.options.repository.findAnalysisPlace(analysisId, placeId);
     if (!analysisPlace) throw new AnalysisPlaceNotFoundError();
     if (analysisPlace.status !== "verified") throw new AnalysisPlaceUnverifiedError();
 
-    return this.options.repository.upsertUserPlace(this.options.ownerUserId, analysisPlace.place);
+    return this.options.repository.upsertUserPlace(userId, analysisPlace.place);
   }
 
-  async list(): Promise<SavedPlace[]> {
-    return this.options.repository.listUserPlaces(this.options.ownerUserId);
+  async list(userId: string): Promise<SavedPlace[]> {
+    if (!userId.trim() || userId.length > 128) throw new Error("userId must be 1-128 characters.");
+    return this.options.repository.listUserPlaces(userId);
   }
 }
