@@ -98,6 +98,16 @@ idempotency operations and saved places are private to that session.
 M2.7 supplies per-user cost limits. It is never sent to a browser; the future
 WebApp will call the application server with its already-resolved session.
 
+### M2.2 — private analysis history
+
+`user_analyses` links a session-owned user to a globally cached
+`source_analyses` record. A successful analysis links its result before the
+idempotency response is stored; a valid legacy replay response establishes the
+same link without running the paid pipeline again. `GET /v1/analyses/:analysisId`
+returns a result only through that user link, and a guessed ID returns absence.
+The explicit save path applies the same ownership check before it can create a
+library item.
+
 ## HTTP contract
 
 `GET /health` is public and returns only health plus safe configuration
@@ -107,6 +117,7 @@ session cookie.
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /v1/analyses` | Analyze a TikTok URL. Requires `Idempotency-Key`; a new key may return a URL cache hit. |
+| `GET /v1/analyses/:analysisId` | Read an analysis only when it is linked to the current browser session. |
 | `POST /v1/analyses/:analysisId/places/:placeId/save` | Explicitly save a provider-verified place linked to that analysis. |
 | `GET /v1/places` | Read the current browser session's saved library. |
 | `POST /internal/probes/tiktok` | Fixed-URL operational probe; requires `PROBE_TOKEN`, accepts no user URL. |
@@ -148,7 +159,7 @@ npm test
 # fixed URL: deployed TikTok evidence acquisition
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-railway.ts
 
-# deployed analysis, replay, cache, explicit save and library read
+# deployed analysis, private read, replay, cache, explicit save and library read
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
 ```
 

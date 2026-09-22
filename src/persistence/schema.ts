@@ -90,6 +90,18 @@ export const sourceAnalyses = pgTable("source_analyses", {
   index("source_analyses_source_id_idx").on(table.sourceId),
 ]);
 
+/** A private user's history points to a globally cacheable source analysis. */
+export const userAnalyses = pgTable("user_analyses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 128 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  analysisId: uuid("analysis_id").notNull().references(() => sourceAnalyses.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("user_analyses_user_analysis_key").on(table.userId, table.analysisId),
+  index("user_analyses_user_id_idx").on(table.userId),
+  index("user_analyses_analysis_id_idx").on(table.analysisId),
+]);
+
 /** A provider-owned geographical identity. It is the only durable verified-place identity. */
 export const places = pgTable("places", {
   id: uuid("id").defaultRandom().primaryKey(),

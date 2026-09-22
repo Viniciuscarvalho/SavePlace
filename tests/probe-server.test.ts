@@ -114,7 +114,7 @@ describe("Railway probe server", () => {
       status: 200,
       body: { cache: "miss", analysisId: "analysis-1", result: acquiredResult },
     });
-    const baseUrl = await startServer({ execute: vi.fn() }, { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze }, browserSessions: browserSessions() });
+    const baseUrl = await startServer({ execute: vi.fn() }, { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze, get: vi.fn() }, browserSessions: browserSessions() });
 
     await expect(fetch(`${baseUrl}/v1/analyses`, { method: "POST" }).then((response) => response.status))
       .resolves.toBe(401);
@@ -159,7 +159,7 @@ describe("Railway probe server", () => {
     const list = vi.fn().mockResolvedValue([]);
     const baseUrl = await startServer(
       { execute: vi.fn() },
-      { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze }, savedPlacesApi: { confirm: vi.fn(), list }, browserSessions: browserSessions() },
+      { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze, get: vi.fn() }, savedPlacesApi: { confirm: vi.fn(), list }, browserSessions: browserSessions() },
     );
 
     const first = await fetch(`${baseUrl}/v1/analyses`, {
@@ -181,6 +181,31 @@ describe("Railway probe server", () => {
     expect(analyze).toHaveBeenNthCalledWith(2, "browser-user-1", "https://vt.tiktok.com/example/", "same-key");
     expect(list).toHaveBeenNthCalledWith(1, "browser-user-0");
     expect(list).toHaveBeenNthCalledWith(2, "browser-user-1");
+  });
+
+  it("returns an analysis only to the browser session linked to it", async () => {
+    const analysisId = "00000000-0000-4000-8000-000000000001";
+    const get = vi.fn().mockImplementation(async (userId: string) => userId === "browser-user-0"
+      ? { status: 200 as const, body: { analysisId, result: acquiredResult } }
+      : undefined);
+    const baseUrl = await startServer(
+      { execute: vi.fn() },
+      { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze: vi.fn(), get }, browserSessions: browserSessions() },
+    );
+
+    const first = await fetch(`${baseUrl}/v1/analyses/${analysisId}`, { headers: { Authorization: "Bearer api-token" } });
+    const firstCookie = first.headers.get("set-cookie");
+    await expect(first.json()).resolves.toMatchObject({ analysisId });
+
+    const second = await fetch(`${baseUrl}/v1/analyses/${analysisId}`, { headers: { Authorization: "Bearer api-token" } });
+    expect(second.status).toBe(404);
+    await expect(second.json()).resolves.toEqual({ error: "analysis_not_found" });
+    expect(get).toHaveBeenNthCalledWith(1, "browser-user-0", analysisId);
+    expect(get).toHaveBeenNthCalledWith(2, "browser-user-1", analysisId);
+
+    const replay = await fetch(`${baseUrl}/v1/analyses/${analysisId}`, { headers: { Authorization: "Bearer api-token", Cookie: firstCookie! } });
+    expect(replay.status).toBe(200);
+    expect(get).toHaveBeenNthCalledWith(3, "browser-user-0", analysisId);
   });
 
   it("does not save a place that the repository cannot prove belongs to the analysis", async () => {

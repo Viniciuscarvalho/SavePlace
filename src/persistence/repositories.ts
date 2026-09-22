@@ -17,7 +17,7 @@ import type {
 } from "./idempotency.js";
 import type { SavePlaceDatabase } from "./database.js";
 import { mentionsForPersistence, providerPlaceIdentity, verifiedPlacesForPersistence } from "./analysis-place-persistence.js";
-import { idempotencyOperations, placeMentions, places, sessions, sourceAliases, sourceAnalyses, sources, userPlaces, users } from "./schema.js";
+import { idempotencyOperations, placeMentions, places, sessions, sourceAliases, sourceAnalyses, sources, userAnalyses, userPlaces, users } from "./schema.js";
 import type {
   AnalysisPlaceLookup,
   SavedPlace as UserSavedPlace,
@@ -25,6 +25,7 @@ import type {
   VerifiedAnalysisPlace,
 } from "../application/saved-place-service.js";
 import type { BrowserSessionRecord, BrowserSessionRepository } from "../application/browser-session-service.js";
+import type { UserAnalysisRepository } from "../application/analysis-api-service.js";
 
 type DatabaseClient = SavePlaceDatabase;
 
@@ -54,7 +55,7 @@ function persistedPlaceId(provider: string, providerPlaceId: string, ids: Readon
   return id;
 }
 
-export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository, BrowserSessionRepository {
+export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository, BrowserSessionRepository, UserAnalysisRepository {
   constructor(private readonly db: DatabaseClient) {}
 
   async findCachedAnalysis(key: AnalysisCacheKey): Promise<CachedAnalysis | undefined> {
@@ -95,6 +96,31 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
         expiresAt: session.expiresAt,
       });
     });
+  }
+
+  async linkUserToAnalysis(userId: string, analysisId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.insert(users).values({ id: userId }).onConflictDoNothing();
+      await tx
+        .insert(userAnalyses)
+        .values({ userId, analysisId })
+        .onConflictDoNothing();
+    });
+  }
+
+  async findAnalysisForUser(userId: string, analysisId: string): Promise<CachedAnalysis | undefined> {
+    const [analysis] = await this.db
+      .select({ analysisId: sourceAnalyses.id, sourceId: sourceAnalyses.sourceId, result: sourceAnalyses.result })
+      .from(userAnalyses)
+      .innerJoin(sourceAnalyses, eq(userAnalyses.analysisId, sourceAnalyses.id))
+      .where(and(eq(userAnalyses.userId, userId), eq(userAnalyses.analysisId, analysisId)))
+      .limit(1);
+    if (!analysis) return undefined;
+    return {
+      ...analysis,
+      result: analysis.result as AnalysisResult,
+      verifiedPlaceReferences: await this.verifiedPlaceReferences(analysis.analysisId),
+    };
   }
 
   async storeAnalysis(write: AnalysisCacheWrite): Promise<CachedAnalysis> {
@@ -284,12 +310,17 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
     await this.finish(request, "failed", response);
   }
 
-  async findAnalysisPlace(analysisId: string, placeId: string): Promise<AnalysisPlaceLookup | undefined> {
+  async findAnalysisPlace(userId: string, analysisId: string, placeId: string): Promise<AnalysisPlaceLookup | undefined> {
     const [row] = await this.db
       .select(verifiedPlaceSelection)
-      .from(placeMentions)
+      .from(userAnalyses)
+      .innerJoin(placeMentions, eq(userAnalyses.analysisId, placeMentions.analysisId))
       .innerJoin(places, eq(placeMentions.placeId, places.id))
-      .where(and(eq(placeMentions.analysisId, analysisId), eq(placeMentions.placeId, placeId)))
+      .where(and(
+        eq(userAnalyses.userId, userId),
+        eq(userAnalyses.analysisId, analysisId),
+        eq(placeMentions.placeId, placeId),
+      ))
       .limit(1);
     return row ? { status: "verified", place: toVerifiedAnalysisPlace(row) } : undefined;
   }

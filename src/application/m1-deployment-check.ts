@@ -20,6 +20,8 @@ const AnalysisResponseSchema = z.object({
   }),
 });
 
+const AnalysisReadResponseSchema = AnalysisResponseSchema.omit({ cache: true, replayed: true });
+
 const SavedPlaceResponseSchema = z.object({
   place: z.object({
     userPlaceId: z.string().uuid(),
@@ -78,6 +80,13 @@ export async function runM1DeploymentCheck(options: {
   const cached = AnalysisResponseSchema.parse(await postAnalysis(fetchImpl, baseUrl, options.apiToken, sourceUrl, `m1-smoke-cache-${requestId}`, session));
   if (cached.replayed || cached.cache !== "hit" || cached.analysisId !== first.analysisId) {
     throw new M1DeploymentCheckError("A new idempotency key did not return the cached analysis response.");
+  }
+
+  const readable = AnalysisReadResponseSchema.parse(await requestJson(fetchImpl, new URL(`/v1/analyses/${encodeURIComponent(first.analysisId)}`, baseUrl), {
+    headers: { Authorization: `Bearer ${options.apiToken}` },
+  }, session));
+  if (readable.analysisId !== first.analysisId) {
+    throw new M1DeploymentCheckError("The current browser session cannot read its linked analysis.");
   }
 
   const reference = first.verifiedPlaceReferences[0];
