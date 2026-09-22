@@ -33,10 +33,11 @@ social URL
   -> explicit UserPlace confirmation
 ```
 
-The Railway service currently hosts the Node process and PostgreSQL runs as a
-separate Railway service. OpenAI, Google Places and social providers remain
-external dependencies. This is intentionally inexpensive and simple while the
-product learns whether the workflow is useful.
+The Railway service currently hosts one Next.js process: the App Router serves
+the WebApp shell and the existing health, probe and product endpoints as route
+handlers. PostgreSQL runs as a separate Railway service. OpenAI, Google Places
+and social providers remain external dependencies. This is intentionally
+inexpensive and simple while the product learns whether the workflow is useful.
 
 ## Non-negotiable data rules
 
@@ -107,6 +108,15 @@ same link without running the paid pipeline again. `GET /v1/analyses/:analysisId
 returns a result only through that user link, and a guessed ID returns absence.
 The explicit save path applies the same ownership check before it can create a
 library item.
+
+### M2.3 — Next.js product shell
+
+The Railway process now starts Next.js. A small server-rendered entry page has
+no analysis controls, provider credentials or protected media. One dynamic App
+Router handler delegates `/health`, `/internal/probes/tiktok` and `/v1/*` to
+the existing HTTP contract, while the retained Node adapter exercises that
+same contract in deterministic tests. The build still emits `dist/cli/migrate.js`
+before `next build`, so Railway's existing pre-deploy migration remains intact.
 
 ## HTTP contract
 
@@ -179,7 +189,8 @@ Google contract price is not configured; SavePlace never invents a price.
 | --- | --- |
 | `npm run typecheck` | Validate TypeScript. |
 | `npm test` | Run deterministic tests; live provider integrations stay skipped. |
-| `npm run build` | Compile the Railway Node process. |
+| `npm run dev` | Run the local Next.js WebApp. |
+| `npm run build` | Compile production migrations and build the Next.js Railway service. |
 | `npm run analyze -- <url>` | Run the local URL pipeline. |
 | `npm run test:integration:tiktok` | Opt-in TikTok provider contract test. |
 | `npm run test:integration:instagram` | Opt-in official Instagram oEmbed contract test. |

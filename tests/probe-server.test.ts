@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResult } from "../src/domain/models.js";
 import { AnalysisPlaceNotFoundError, type SavedPlace } from "../src/application/saved-place-service.js";
 import { BrowserSessionService, type BrowserSessionRecord, type BrowserSessionRepository } from "../src/application/browser-session-service.js";
-import { createProbeServer, type AnalysisApi, type SavedPlacesApi, type SourceAnalyzer } from "../src/http/probe-server.js";
+import { createProbeServer, createProductRequestHandler, type AnalysisApi, type SavedPlacesApi, type SourceAnalyzer } from "../src/http/probe-server.js";
 
 const servers: ReturnType<typeof createProbeServer>[] = [];
 
@@ -78,6 +78,15 @@ const savedPlace: SavedPlace = {
 };
 
 describe("Railway probe server", () => {
+  it("serves the health contract as a Web Request handler for Next routes", async () => {
+    const handle = createProductRequestHandler({ analyzer: { execute: vi.fn() }, probeToken: "test-token" });
+
+    const response = await handle(new Request("http://localhost/health"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "ok", probeConfigured: true, analysisApiConfigured: false });
+  });
+
   it("serves an unauthenticated healthcheck", async () => {
     const baseUrl = await startServer({ execute: vi.fn() });
     await expect(fetch(`${baseUrl}/health`).then((response) => response.json())).resolves.toEqual({ status: "ok", probeConfigured: true, analysisApiConfigured: false });
