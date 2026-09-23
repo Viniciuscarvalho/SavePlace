@@ -8,12 +8,20 @@ import type { AnalysisApiResponse, AnalysisReadResponse } from "../application/a
 import {
   AnalysisPlaceNotFoundError,
   AnalysisPlaceUnverifiedError,
+  SavedPlaceNotFoundError,
   type SavedPlace,
+  type SavedPlaceUpdate,
 } from "../application/saved-place-service.js";
 import type { BrowserSessionService, ResolvedBrowserSession } from "../application/browser-session-service.js";
 
 export const TIKTOK_ACCEPTANCE_URL = "https://vt.tiktok.com/ZSq4UprxR/";
 const AnalysisIdSchema = z.string().uuid();
+const UserPlaceIdSchema = z.string().uuid();
+const SavedPlaceUpdateSchema = z.object({
+  status: z.enum(["want_to_go", "visited"]).optional(),
+  favorite: z.boolean().optional(),
+  notes: z.string().trim().max(2_000).nullable().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0);
 
 export interface SourceAnalyzer {
   execute(input: string): Promise<AnalysisResult>;
@@ -27,6 +35,8 @@ export interface AnalysisApi {
 export interface SavedPlacesApi {
   confirm(userId: string, analysisId: string, placeId: string): Promise<SavedPlace>;
   list(userId: string): Promise<SavedPlace[]>;
+  update(userId: string, userPlaceId: string, update: SavedPlaceUpdate): Promise<SavedPlace>;
+  remove(userId: string, userPlaceId: string): Promise<void>;
 }
 
 export type ProbeServerOptions = {
@@ -85,6 +95,14 @@ export function createProductRequestHandler(options: ProbeServerOptions): (reque
 
       if (url.pathname === "/v1/places") {
         return handleSavedPlacesApi(request, options.savedPlacesApi, options.browserSessions, apiToken);
+      }
+
+      const userPlaceMatch = /^\/v1\/places\/([^/]+)$/.exec(url.pathname);
+      if (userPlaceMatch) {
+        const userPlaceId = UserPlaceIdSchema.safeParse(userPlaceMatch[1]);
+        return userPlaceId.success
+          ? handleUserPlaceApi(request, options.savedPlacesApi, options.browserSessions, apiToken, userPlaceId.data)
+          : jsonResponse(404, { error: "not_found" });
       }
 
       const saveMatch = /^\/v1\/analyses\/([^/]+)\/places\/([^/]+)\/save$/.exec(url.pathname);
@@ -185,11 +203,34 @@ async function handleSavePlaceApi(request: Request, api: SavedPlacesApi | undefi
   }
 }
 
+async function handleUserPlaceApi(request: Request, api: SavedPlacesApi | undefined, browserSessions: BrowserSessionService | undefined, apiToken: string | undefined, userPlaceId: string): Promise<Response> {
+  if (request.method !== "PATCH" && request.method !== "DELETE") return jsonResponse(405, { error: "method_not_allowed" }, { allow: "PATCH, DELETE" });
+  if (!api || !browserSessions || !apiToken) return jsonResponse(503, { error: "analysis_api_unavailable" });
+  if (!hasValidBearerToken(request, apiToken)) return jsonResponse(401, { error: "unauthorized" });
+  const session = await resolveBrowserSession(request, browserSessions);
+  try {
+    if (request.method === "DELETE") {
+      await api.remove(session.userId, userPlaceId);
+      return emptyResponse(204, sessionHeaders(session));
+    }
+    const parsed = SavedPlaceUpdateSchema.safeParse(await readJson(request));
+    if (!parsed.success) return jsonResponse(400, { error: "invalid_request" }, sessionHeaders(session));
+    return jsonResponse(200, { place: await api.update(session.userId, userPlaceId, parsed.data) }, sessionHeaders(session));
+  } catch (error) {
+    if (error instanceof SavedPlaceNotFoundError) return jsonResponse(404, { error: "saved_place_not_found" }, sessionHeaders(session));
+    return jsonResponse(502, { error: "saved_place_failed" }, sessionHeaders(session));
+  }
+}
+
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers },
   });
+}
+
+function emptyResponse(status: number, headers: Record<string, string> = {}): Response {
+  return new Response(null, { status, headers: { "cache-control": "no-store", ...headers } });
 }
 
 function hasValidBearerToken(request: Request, expectedToken: string): boolean {

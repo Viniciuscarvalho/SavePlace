@@ -4,6 +4,6 @@ import { createBrowserProductRequestHandler } from "../../../http/browser-analys
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const handle = createBrowserProductRequestHandler(getApplicationRuntime(), "/v1/analyses");
+const handle = createBrowserProductRequestHandler(getApplicationRuntime(), "/v1/places");
 
-export const POST = handle;
+export const GET = handle;

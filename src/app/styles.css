@@ -12,8 +12,8 @@ h3 { font-size: 1rem; margin-bottom: 1rem; }
 .analysis-form { background: #fff; border: 1px solid #d9ded9; border-radius: 1rem; margin-top: 2.25rem; padding: 1.25rem; }
 label { display: block; font-size: .875rem; font-weight: 700; margin-bottom: .55rem; }
 .form-row { display: flex; gap: .65rem; }
-input { border: 1px solid #aab7b1; border-radius: .55rem; flex: 1; font: inherit; min-width: 0; padding: .8rem .9rem; }
-input:focus { outline: 3px solid #bcecdf; outline-offset: 2px; }
+input, select { border: 1px solid #aab7b1; border-radius: .55rem; flex: 1; font: inherit; min-width: 0; padding: .8rem .9rem; }
+input:focus, select:focus { outline: 3px solid #bcecdf; outline-offset: 2px; }
 button { background: #0b6e5f; border: 0; border-radius: .55rem; color: #fff; cursor: pointer; font: inherit; font-weight: 700; padding: .8rem 1rem; }
 button:disabled { cursor: wait; opacity: .65; }
 .form-note, .live-message { color: #60706a; font-size: .875rem; line-height: 1.5; margin: .75rem 0 0; }
@@ -31,6 +31,9 @@ button:disabled { cursor: wait; opacity: .65; }
 .place-list, .candidate-list, .evidence-list { display: grid; gap: .7rem; list-style: none; margin: 0; padding: 0; }
 .place-list li, .candidate-list li, .evidence-list li { background: #fff; border: 1px solid #d9ded9; border-radius: .75rem; padding: 1rem; }
 .place-list li, .candidate-list li { display: grid; gap: .3rem; }
+.place-list label { color: #50605b; display: grid; font-size: .82rem; gap: .3rem; }
+.place-list button { justify-self: start; }
+button.danger { background: #8e3027; }
 .place-list span, .candidate-list span { color: #60706a; font-size: .9rem; }
 .candidate-list .support { justify-self: start; margin-top: .25rem; }
 .evidence-list li { color: #40504a; line-height: 1.5; }

@@ -130,6 +130,14 @@ idempotency key, then injects the operational token only on the server before
 delegating to `/v1/analyses`. It shows loading, completed, needs-review and
 insufficient-evidence states without saving a place.
 
+### M2.6 — saved-place library
+
+The WebApp now forwards explicit save, list, update and removal requests
+through same-origin routes. A browser can save only a provider-verified place
+linked to its own analysis; it can then change `want_to_go`/`visited`, favorite
+state and note, or remove its private `user_places` link. It never deletes the
+shared verified-place record, and no analysis saves a place automatically.
+
 ## HTTP contract
 
 `GET /health` is public and returns only health plus safe configuration
@@ -139,18 +147,23 @@ session cookie.
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/analyses` | Same-origin WebApp façade. It forwards cookie and idempotency data, but injects `API_TOKEN` only on the server. |
+| `POST /api/analyses/:analysisId/places/:placeId/save` | Same-origin explicit-save façade; it never trusts a browser-supplied user ID. |
+| `GET /api/places` | Same-origin library façade. |
+| `PATCH` / `DELETE /api/places/:userPlaceId` | Same-origin private-library update and removal façades. |
 | `POST /v1/analyses` | Analyze a TikTok URL. Requires `Idempotency-Key`; a new key may return a URL cache hit. |
 | `GET /v1/analyses/:analysisId` | Read an analysis only when it is linked to the current browser session. |
 | `POST /v1/analyses/:analysisId/places/:placeId/save` | Explicitly save a provider-verified place linked to that analysis. |
 | `GET /v1/places` | Read the current browser session's saved library. |
+| `PATCH /v1/places/:userPlaceId` | Change only the current user's status, favorite flag or note. |
+| `DELETE /v1/places/:userPlaceId` | Remove only the current user's library link. |
 | `POST /internal/probes/tiktok` | Fixed-URL operational probe; requires `PROBE_TOKEN`, accepts no user URL. |
 
 The direct `/v1` API remains intentionally narrow and protected while M2.7
 adds per-user cost limits to the WebApp flow.
 
-The M2.5 WebApp is review-only: it renders safe acquired evidence, extracted
-candidates, optional support signals and provider-verified places. It does not
-save a place or expose provider credentials; confirmation stays in M2.6.
+The M2.6 WebApp renders safe acquired evidence, extracted candidates, optional
+support signals and provider-verified places. It exposes no provider
+credentials, and saving stays an explicit user action.
 
 ## Operations
 
