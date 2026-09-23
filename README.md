@@ -12,7 +12,7 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.3 Next.js shell.** TikTok acquisition, evidence-bound
+> **Status — M2.4 evidence review signal.** TikTok acquisition, evidence-bound
 > extraction, Google place verification, PostgreSQL persistence, cache,
 > idempotency and explicit saved-place confirmation have been validated on
 > Railway. The WebApp now has a small, safe entry point; its analysis and
@@ -47,6 +47,9 @@ location.
   read, replay, cache, explicit save and library contracts.
 - A Next.js App Router shell serves the product entry point and the same
   server-owned HTTP contract; it exposes no provider credentials or raw media.
+- When `TYPESAFE_API_KEY` is configured, one batched Choice labels each
+  candidate as supporting, ambiguous or unsupported evidence. It never
+  verifies a place or saves one.
 
 Instagram is deliberately not part of the supported product path yet: its
 official API requires a professional-account setup. The adapter fails safely

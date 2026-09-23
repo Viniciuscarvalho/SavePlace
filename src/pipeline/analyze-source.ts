@@ -2,6 +2,7 @@ import type { AnalysisResult } from "../domain/models.js";
 import type { ContentSourceRouter } from "../ingestion/content-source.js";
 import type { AuditablePlaceExtractor, ExtractionRun, PlaceExtractor } from "../extraction/place-extractor.js";
 import type { PlaceResolver } from "../resolution/place-resolver.js";
+import type { CandidateEvidenceJudge } from "../evidence/typesafe-evidence-judge.js";
 
 export function deduplicateResolvedPlaces<T extends { provider: string; providerPlaceId: string; overallConfidence: number }>(places: T[]): T[] {
   const byProviderIdentity = new Map<string, T>();
@@ -14,7 +15,12 @@ export function deduplicateResolvedPlaces<T extends { provider: string; provider
 }
 
 export class AnalyzeSource {
-  constructor(private readonly sources: ContentSourceRouter, private readonly extractor: PlaceExtractor, private readonly resolver: PlaceResolver) {}
+  constructor(
+    private readonly sources: ContentSourceRouter,
+    private readonly extractor: PlaceExtractor,
+    private readonly resolver: PlaceResolver,
+    private readonly evidenceJudge?: CandidateEvidenceJudge,
+  ) {}
 
   async execute(input: string): Promise<AnalysisResult> {
     const startedAt = performance.now();
@@ -39,6 +45,9 @@ export class AnalyzeSource {
 
     const extraction = await this.extract(acquisition.source);
     const candidates = extraction.candidates;
+    const evidenceJudgment = this.evidenceJudge && candidates.length > 0
+      ? await this.evidenceJudge.judge(candidates, acquisition.source.evidence)
+      : undefined;
     const resolutions = await Promise.all(candidates.map((candidate) => this.resolver.resolveWithTrace(candidate)));
     const mentions = candidates.map((candidate, index) => {
       const place = resolutions[index]?.place;
@@ -57,10 +66,12 @@ export class AnalyzeSource {
       source: { input, platform: acquisition.source.platform, canonicalUrl: acquisition.source.canonicalUrl, ...(acquisition.source.contentId ? { contentId: acquisition.source.contentId } : {}) },
       evidence: acquisition.source.evidence,
       candidates, places, mentions,
+      ...(evidenceJudgment ? { candidateEvidenceSupport: evidenceJudgment.support } : {}),
       processing: {
         extractionMethod: "url_metadata",
         durationMs: performance.now() - startedAt,
         ...(extraction.trace ? { extraction: extraction.trace } : {}),
+        ...(evidenceJudgment ? { evidenceJudgment: evidenceJudgment.attribution } : {}),
         ...(resolutionRequests > 0 ? {
           resolution: {
             provider: resolutions[0]?.provider ?? "unknown",

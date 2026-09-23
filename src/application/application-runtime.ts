@@ -10,6 +10,7 @@ import { ContentSourceRouter } from "../ingestion/content-source.js";
 import { TikTokSource } from "../ingestion/tiktok-source.js";
 import type { ProbeServerOptions } from "../http/probe-server.js";
 import { AnalyzeSource } from "../pipeline/analyze-source.js";
+import { TypeSafeEvidenceJudge } from "../evidence/typesafe-evidence-judge.js";
 import { GooglePlacesProvider } from "../resolution/google-places-provider.js";
 import { EmptyPlaceProvider, PlaceResolver, type PlaceProvider } from "../resolution/place-resolver.js";
 
@@ -29,6 +30,7 @@ export function createApplicationRuntime(environment: NodeJS.ProcessEnv = proces
     new ContentSourceRouter([new TikTokSource()]),
     openAiApiKey ? new OpenAIPlaceExtractor({ apiKey: openAiApiKey }) : new NoGuessPlaceExtractor(),
     new PlaceResolver(placeProvider),
+    new TypeSafeEvidenceJudge({ apiKey: optionalEnvironment(environment, "TYPESAFE_API_KEY") }),
   );
   const runtime: ProbeServerOptions = {
     analyzer,
@@ -48,11 +50,12 @@ export function createApplicationRuntime(environment: NodeJS.ProcessEnv = proces
       cache: new AnalysisCache(repository),
       idempotency: new IdempotentOperation(repository),
       userAnalyses: repository,
-      pipelineVersion: "m1.4b-tiktok-url-v1",
+      pipelineVersion: "m2.4-tiktok-url-evidence-v1",
       providerConfigFingerprint: requestHash({
         source: "tiktok_oembed",
         extractor: openAiApiKey ? "openai" : "no_guess",
         placeProvider: googleApiKey ? "google_places_new" : "empty",
+        evidenceJudge: optionalEnvironment(environment, "TYPESAFE_API_KEY") ? "typesafe_jev_1_13" : "unavailable",
       }),
     }),
     savedPlacesApi: new SavedPlaceService({ repository }),

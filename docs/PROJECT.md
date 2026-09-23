@@ -27,6 +27,7 @@ social URL
   -> ContentSource (TikTok official oEmbed)
   -> Evidence[]
   -> PlaceExtractor (OpenAI structured output)
+  -> optional CandidateEvidenceJudge (TypeSafe support signal)
   -> PlaceProvider (Google Places)
   -> AnalysisResult
   -> PostgreSQL cache / idempotency / verified place links
@@ -38,6 +39,8 @@ the WebApp shell and the existing health, probe and product endpoints as route
 handlers. PostgreSQL runs as a separate Railway service. OpenAI, Google Places
 and social providers remain external dependencies. This is intentionally
 inexpensive and simple while the product learns whether the workflow is useful.
+The optional judgment runs once for all candidates and is review context only:
+it cannot change the PlaceProvider path or geographic verification.
 
 ## Non-negotiable data rules
 
@@ -142,6 +145,7 @@ Copy `.env.example` to an ignored `.env`; no real key belongs in Git.
 | Variable | Role |
 | --- | --- |
 | `OPENAI_API_KEY` | Optional structured extraction. |
+| `TYPESAFE_API_KEY` | Optional candidate-evidence support; unavailable without it and never used for verification or saving. |
 | `GOOGLE_MAPS_API_KEY` | Optional Google place verification. |
 | `DATABASE_URL` | PostgreSQL connection for persistence. On Railway, reference the Postgres service variable. |
 | `API_TOKEN` | Temporary server-side gate for direct product API calls until M2.7. |
@@ -149,6 +153,11 @@ Copy `.env.example` to an ignored `.env`; no real key belongs in Git.
 | `SAVEPLACE_PROBE_URL`, `SAVEPLACE_API_URL` | Trusted-terminal targets for probe and persisted-session smoke checks. |
 | `INSTAGRAM_OEMBED_ACCESS_TOKEN`, `INSTAGRAM_OEMBED_ENDPOINT`, `INSTAGRAM_OEMBED_TEST_URL` | Optional official Instagram oEmbed integration and its opt-in contract test. |
 | `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Optional price from the active Google billing contract. Leave blank when unknown. |
+
+The M2.4 adapter pins `jev-1.13.0`; its estimated cost uses TypeSafe's
+published US$0.042 per one million input tokens for that model (checked
+2026-09-23). Returned model, token use and latency stay attached to the
+analysis.
 
 Railway runs this before starting the service:
 
@@ -218,6 +227,12 @@ The M2 sequence, identity decision, optional TypeSafe evidence signal and
 independently shippable PRs are defined in the [M2 plan](M2.md). It keeps the
 existing place-verification rule intact while adding a browser-owned user scope
 and a small WebApp before introducing workers or queues.
+
+M2.4 is implemented as one optional, batched TypeSafe Choice request per
+analysis. It records the returned model, prompt version, latency, tokens and
+estimated input cost; a low-confidence result is exposed as `ambiguous`.
+Neither a negative signal nor an unavailable provider changes a Google-verified
+place, authorization or explicit-save contract.
 
 ## Portfolio evidence and limitations
 
