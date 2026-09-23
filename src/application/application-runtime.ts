@@ -1,4 +1,5 @@
 import { AnalysisApiService } from "./analysis-api-service.js";
+import { AnalysisUsageService } from "./analysis-usage-service.js";
 import { BrowserSessionService } from "./browser-session-service.js";
 import { SavedPlaceService } from "./saved-place-service.js";
 import { AnalysisCache } from "../persistence/analysis-cache.js";
@@ -17,6 +18,14 @@ import { EmptyPlaceProvider, PlaceResolver, type PlaceProvider } from "../resolu
 function optionalEnvironment(environment: NodeJS.ProcessEnv, name: string): string | undefined {
   const value = environment[name]?.trim();
   return value || undefined;
+}
+
+function positiveIntegerEnvironment(environment: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const value = optionalEnvironment(environment, name);
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${name} must be a positive integer.`);
+  return parsed;
 }
 
 /** Creates the server-owned runtime used by both Next pages and route handlers. */
@@ -42,6 +51,7 @@ export function createApplicationRuntime(environment: NodeJS.ProcessEnv = proces
 
   const database = createDatabase(databaseUrlFromEnvironment({ DATABASE_URL: databaseUrl }));
   const repository = new DrizzlePersistenceRepository(database.db);
+  const usage = new AnalysisUsageService({ repository, monthlyLimit: positiveIntegerEnvironment(environment, "SAVEPLACE_USER_ANALYSIS_LIMIT", 10) });
   return {
     ...runtime,
     apiToken,
@@ -57,9 +67,11 @@ export function createApplicationRuntime(environment: NodeJS.ProcessEnv = proces
         placeProvider: googleApiKey ? "google_places_new" : "empty",
         evidenceJudge: optionalEnvironment(environment, "TYPESAFE_API_KEY") ? "typesafe_jev_1_13" : "unavailable",
       }),
+      usage,
     }),
     savedPlacesApi: new SavedPlaceService({ repository }),
     browserSessions: new BrowserSessionService(repository),
+    metricsApi: usage,
   };
 }
 

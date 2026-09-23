@@ -3,6 +3,7 @@ import type { AnalysisResult } from "../src/domain/models.js";
 import { AnalysisApiService, type UserAnalysisRepository } from "../src/application/analysis-api-service.js";
 import { AnalysisCache, type AnalysisCacheKey, type AnalysisCacheRepository, type AnalysisCacheWrite, type CachedAnalysis } from "../src/persistence/analysis-cache.js";
 import { IdempotentOperation, requestHash, type IdempotencyClaim, type IdempotencyRepository, type IdempotencyRequest, type StoredIdempotencyResponse } from "../src/persistence/idempotency.js";
+import { AnalysisUsageService, type AnalysisUsageMetric, type AnalysisUsageRepository } from "../src/application/analysis-usage-service.js";
 
 const analysisId = "00000000-0000-4000-8000-000000000001";
 
@@ -79,6 +80,19 @@ class UserAnalysisRepositoryMemory implements UserAnalysisRepository {
   }
 }
 
+class UsageRepositoryMemory implements AnalysisUsageRepository {
+  readonly counts = new Map<string, number>();
+  async tryConsumeUserAnalysis(input: { userId: string; period: string; limit: number }): Promise<boolean> {
+    const key = `${input.userId}:${input.period}`;
+    const count = this.counts.get(key) ?? 0;
+    if (count >= input.limit) return false;
+    this.counts.set(key, count + 1);
+    return true;
+  }
+  async recordAnalysisMetric(_metric: AnalysisUsageMetric): Promise<void> {}
+  async listAnalysisMetrics(_period: string): Promise<AnalysisUsageMetric[]> { return []; }
+}
+
 describe("AnalysisApiService", () => {
   it("replays an idempotent request and uses the URL cache for a new key", async () => {
     const analyzer = { execute: vi.fn().mockResolvedValue(result) };
@@ -113,5 +127,22 @@ describe("AnalysisApiService", () => {
 
     expect(analyzer.execute).toHaveBeenCalledTimes(1);
     expect(userAnalyses.links).toEqual(new Set([`user-a:${analysisId}`, `user-b:${analysisId}`, `user-c:${analysisId}`]));
+  });
+
+  it("limits uncached paid pipeline starts while leaving cache hits and replays free", async () => {
+    const analyzer = { execute: vi.fn().mockResolvedValue(result) };
+    const cacheRepository = new CacheRepository();
+    const usage = new AnalysisUsageService({ repository: new UsageRepositoryMemory(), monthlyLimit: 1, now: () => new Date("2026-09-23T12:00:00.000Z") });
+    const service = new AnalysisApiService({
+      analyzer, cache: new AnalysisCache(cacheRepository), idempotency: new IdempotentOperation(new IdempotencyRepositoryMemory()),
+      userAnalyses: new UserAnalysisRepositoryMemory(cacheRepository), pipelineVersion: "pipeline-v1", providerConfigFingerprint: "providers-v1", usage,
+    });
+
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/first/", "first")).resolves.toMatchObject({ status: 200, body: { cache: "miss" } });
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/second/", "second")).resolves.toMatchObject({ status: 429, body: { error: "user_analysis_limit_exceeded" } });
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/second/", "second")).resolves.toMatchObject({ replayed: true, status: 429, body: { error: "user_analysis_limit_exceeded" } });
+    await expect(service.analyze("user-a", "https://vt.tiktok.com/first/", "third")).resolves.toMatchObject({ status: 200, body: { cache: "hit" } });
+
+    expect(analyzer.execute).toHaveBeenCalledTimes(1);
   });
 });

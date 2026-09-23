@@ -79,15 +79,26 @@ export function cacheableSource(result: AnalysisResult, inputUrl: string): {
 export function providerUsageFromAnalysis(result: AnalysisResult): ProviderUsage[] {
   const usage = [...(result.processing.resolution?.usage ?? [])];
   const extraction = result.processing.extraction;
-  if (!extraction || extraction.status !== "completed") return usage;
-
-  usage.push({
-    provider: extraction.provider,
-    operation: "place_extraction",
-    requests: 1,
-    billableUnits: extraction.inputTokens + extraction.outputTokens,
-    estimatedCostUsd: extraction.estimatedCostUsd,
-    costStatus: "estimated",
-  });
+  if (extraction?.status === "completed") {
+    usage.push({
+      provider: extraction.provider,
+      operation: "place_extraction",
+      requests: 1,
+      billableUnits: extraction.inputTokens + extraction.outputTokens,
+      estimatedCostUsd: extraction.estimatedCostUsd,
+      costStatus: "estimated",
+    });
+  }
+  const evidenceJudgment = result.processing.evidenceJudgment;
+  if (evidenceJudgment?.status === "completed") {
+    usage.push({
+      provider: evidenceJudgment.provider,
+      operation: "evidence_judgment",
+      requests: 1,
+      billableUnits: evidenceJudgment.inputTokens + evidenceJudgment.outputTokens,
+      estimatedCostUsd: evidenceJudgment.estimatedCostUsd,
+      costStatus: "estimated",
+    });
+  }
   return usage;
 }
