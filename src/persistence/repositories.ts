@@ -21,6 +21,7 @@ import { idempotencyOperations, placeMentions, places, sessions, sourceAliases, 
 import type {
   AnalysisPlaceLookup,
   SavedPlace as UserSavedPlace,
+  SavedPlaceUpdate,
   SavedPlaceRepository,
   VerifiedAnalysisPlace,
 } from "../application/saved-place-service.js";
@@ -351,7 +352,31 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
     return rows.map(toUserSavedPlace);
   }
 
-  private async readUserPlace(tx: Parameters<Parameters<DatabaseClient["transaction"]>[0]>[0], userId: string, placeId: string): Promise<UserSavedPlace> {
+  async updateUserPlace(userId: string, userPlaceId: string, update: SavedPlaceUpdate): Promise<UserSavedPlace | undefined> {
+    if (!userId.trim()) throw new Error("userId must be set.");
+    const [updated] = await this.db
+      .update(userPlaces)
+      .set({
+        ...(update.status !== undefined ? { status: update.status } : {}),
+        ...(update.favorite !== undefined ? { favorite: update.favorite } : {}),
+        ...(update.notes !== undefined ? { notes: update.notes } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(userPlaces.id, userPlaceId), eq(userPlaces.userId, userId)))
+      .returning({ placeId: userPlaces.placeId });
+    return updated ? this.readUserPlace(this.db, userId, updated.placeId) : undefined;
+  }
+
+  async deleteUserPlace(userId: string, userPlaceId: string): Promise<boolean> {
+    if (!userId.trim()) throw new Error("userId must be set.");
+    const deleted = await this.db
+      .delete(userPlaces)
+      .where(and(eq(userPlaces.id, userPlaceId), eq(userPlaces.userId, userId)))
+      .returning({ id: userPlaces.id });
+    return deleted.length === 1;
+  }
+
+  private async readUserPlace(tx: Parameters<Parameters<DatabaseClient["transaction"]>[0]>[0] | DatabaseClient, userId: string, placeId: string): Promise<UserSavedPlace> {
     const [row] = await tx
       .select(userPlaceSelection)
       .from(userPlaces)

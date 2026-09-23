@@ -12,11 +12,11 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.5 analysis review.** TikTok acquisition, evidence-bound
+> **Status — M2.6 saved-place library.** TikTok acquisition, evidence-bound
 > extraction, Google place verification, PostgreSQL persistence, cache,
 > idempotency and explicit saved-place confirmation have been validated on
-> Railway. The WebApp now supports analysis review; the saved-place library
-> screen follows in M2.6.
+> Railway. The WebApp now supports analysis review and an explicitly managed
+> private saved-place library.
 
 ## The promise
 
@@ -48,6 +48,8 @@ location.
 - The Next.js App Router has a TikTok analysis review flow with explicit
   loading, insufficient-evidence and review states; it exposes no provider
   credentials or raw media.
+- Provider-verified places are saved only after a click, then can be listed,
+  marked visited or favorite, noted and removed from the private library.
 - When `TYPESAFE_API_KEY` is configured, one batched Choice labels each
   candidate as supporting, ambiguous or unsupported evidence. It never
   verifies a place or saves one.
@@ -71,7 +73,7 @@ Run the local WebApp at `http://localhost:3000`:
 npm run dev
 ```
 
-With the server-side variables from the [operations guide](docs/PROJECT.md#operations), paste a public TikTok URL to review its evidence and verified places. The browser never receives provider keys or `API_TOKEN`.
+With the server-side variables from the [operations guide](docs/PROJECT.md#operations), paste a public TikTok URL to review its evidence and verified places. Save a verified place only when you choose to; then manage it in the private library below the review. The browser never receives provider keys or `API_TOKEN`.
 
 Analyze a public TikTok URL locally:
 

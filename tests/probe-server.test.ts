@@ -146,7 +146,7 @@ describe("Railway probe server", () => {
     const list = vi.fn().mockResolvedValue([savedPlace]);
     const baseUrl = await startServer(
       { execute: vi.fn() },
-      { probeToken: "test-token", apiToken: "api-token", savedPlacesApi: { confirm, list }, browserSessions: browserSessions() },
+      { probeToken: "test-token", apiToken: "api-token", savedPlacesApi: { confirm, list, update: vi.fn(), remove: vi.fn() }, browserSessions: browserSessions() },
     );
 
     const libraryResponse = await fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token" } });
@@ -163,12 +163,39 @@ describe("Railway probe server", () => {
     expect(confirm).toHaveBeenCalledWith("browser-user-0", "analysis-1", "place-1");
   });
 
+  it("updates and removes a saved place only through the resolved browser session", async () => {
+    const userPlaceId = "00000000-0000-4000-8000-000000000001";
+    const update = vi.fn().mockResolvedValue({ ...savedPlace, userPlaceId, status: "visited", favorite: true, notes: "Great coffee" });
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const baseUrl = await startServer(
+      { execute: vi.fn() },
+      { probeToken: "test-token", apiToken: "api-token", savedPlacesApi: { confirm: vi.fn(), list: vi.fn(), update, remove }, browserSessions: browserSessions() },
+    );
+
+    const first = await fetch(`${baseUrl}/v1/places`, { headers: { Authorization: "Bearer api-token" } });
+    const cookie = first.headers.get("set-cookie");
+    const patch = await fetch(`${baseUrl}/v1/places/${userPlaceId}`, {
+      method: "PATCH",
+      headers: { Authorization: "Bearer api-token", Cookie: cookie!, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "visited", favorite: true, notes: "Great coffee" }),
+    });
+    expect(patch.status).toBe(200);
+    await expect(patch.json()).resolves.toMatchObject({ place: { userPlaceId, status: "visited", favorite: true } });
+    expect(update).toHaveBeenCalledWith("browser-user-0", userPlaceId, { status: "visited", favorite: true, notes: "Great coffee" });
+
+    const deletion = await fetch(`${baseUrl}/v1/places/${userPlaceId}`, {
+      method: "DELETE", headers: { Authorization: "Bearer api-token", Cookie: cookie! },
+    });
+    expect(deletion.status).toBe(204);
+    expect(remove).toHaveBeenCalledWith("browser-user-0", userPlaceId);
+  });
+
   it("does not share an idempotency scope or library between browser sessions", async () => {
     const analyze = vi.fn().mockResolvedValue({ replayed: false, status: 200, body: { cache: "hit", analysisId: "analysis-1", result: acquiredResult } });
     const list = vi.fn().mockResolvedValue([]);
     const baseUrl = await startServer(
       { execute: vi.fn() },
-      { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze, get: vi.fn() }, savedPlacesApi: { confirm: vi.fn(), list }, browserSessions: browserSessions() },
+      { probeToken: "test-token", apiToken: "api-token", analysisApi: { analyze, get: vi.fn() }, savedPlacesApi: { confirm: vi.fn(), list, update: vi.fn(), remove: vi.fn() }, browserSessions: browserSessions() },
     );
 
     const first = await fetch(`${baseUrl}/v1/analyses`, {
@@ -223,7 +250,7 @@ describe("Railway probe server", () => {
       {
         probeToken: "test-token",
         apiToken: "api-token",
-        savedPlacesApi: { confirm: vi.fn().mockRejectedValue(new AnalysisPlaceNotFoundError()), list: vi.fn() },
+        savedPlacesApi: { confirm: vi.fn().mockRejectedValue(new AnalysisPlaceNotFoundError()), list: vi.fn(), update: vi.fn(), remove: vi.fn() },
         browserSessions: browserSessions(),
       },
     );

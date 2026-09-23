@@ -5,6 +5,7 @@ import {
   SavedPlaceService,
   type AnalysisPlaceLookup,
   type SavedPlace,
+  type SavedPlaceUpdate,
   type SavedPlaceRepository,
   type VerifiedAnalysisPlace,
 } from "../src/application/saved-place-service.js";
@@ -31,6 +32,13 @@ class FakeSavedPlaceRepository implements SavedPlaceRepository {
   readonly findAnalysisPlace = vi.fn(async () => this.lookup);
   readonly upsertUserPlace = vi.fn(async () => savedPlace);
   readonly listUserPlaces = vi.fn(async () => [savedPlace]);
+  readonly updateUserPlace = vi.fn(async (_userId: string, _userPlaceId: string, update: SavedPlaceUpdate): Promise<SavedPlace> => ({
+    ...savedPlace,
+    ...(update.status !== undefined ? { status: update.status } : {}),
+    ...(update.favorite !== undefined ? { favorite: update.favorite } : {}),
+    ...(update.notes !== undefined ? (update.notes ? { notes: update.notes } : {}) : {}),
+  }));
+  readonly deleteUserPlace = vi.fn(async () => true);
 }
 
 describe("SavedPlaceService", () => {
@@ -67,5 +75,17 @@ describe("SavedPlaceService", () => {
 
     await expect(service.list("user-a")).resolves.toEqual([savedPlace]);
     expect(repository.listUserPlaces).toHaveBeenCalledWith("user-a");
+  });
+
+  it("updates and removes only a saved place in the resolved user's library", async () => {
+    const repository = new FakeSavedPlaceRepository();
+    const service = new SavedPlaceService({ repository });
+
+    await expect(service.update("user-a", "user-place-1", { status: "visited", favorite: true, notes: "  Great coffee  " }))
+      .resolves.toMatchObject({ status: "visited", favorite: true, notes: "Great coffee" });
+    await expect(service.remove("user-a", "user-place-1")).resolves.toBeUndefined();
+
+    expect(repository.updateUserPlace).toHaveBeenCalledWith("user-a", "user-place-1", { status: "visited", favorite: true, notes: "Great coffee" });
+    expect(repository.deleteUserPlace).toHaveBeenCalledWith("user-a", "user-place-1");
   });
 });
