@@ -27,7 +27,7 @@ Thanks for helping build an evidence-first place-saving product.
 - Deterministic source-adapter fixtures and failure cases.
 - Evaluation cases with documented, public ground truth.
 - Provider adapter improvements that preserve typed boundaries.
-- Documentation and accessibility improvements for the future WebApp.
+- Documentation and accessibility improvements for the WebApp.
 
 By contributing, you agree that your contribution is licensed under the
 [MIT License](LICENSE).
