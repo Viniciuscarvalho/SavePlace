@@ -114,12 +114,21 @@ library item.
 
 ### M2.3 — Next.js product shell
 
-The Railway process now starts Next.js. A small server-rendered entry page has
-no analysis controls, provider credentials or protected media. One dynamic App
-Router handler delegates `/health`, `/internal/probes/tiktok` and `/v1/*` to
-the existing HTTP contract, while the retained Node adapter exercises that
-same contract in deterministic tests. The build still emits `dist/cli/migrate.js`
-before `next build`, so Railway's existing pre-deploy migration remains intact.
+The Railway process now starts Next.js. Its original server-rendered entry
+page had no analysis controls, provider credentials or protected media. One
+dynamic App Router handler delegates `/health`, `/internal/probes/tiktok` and
+`/v1/*` to the existing HTTP contract, while the retained Node adapter
+exercises that same contract in deterministic tests. The build still emits
+`dist/cli/migrate.js` before `next build`, so Railway's existing pre-deploy
+migration remains intact.
+
+### M2.5 — analysis review
+
+The static page now composes a small client-side URL form and review view. Its
+same-origin `POST /api/analyses` façade forwards the browser session and
+idempotency key, then injects the operational token only on the server before
+delegating to `/v1/analyses`. It shows loading, completed, needs-review and
+insufficient-evidence states without saving a place.
 
 ## HTTP contract
 
@@ -129,14 +138,19 @@ session cookie.
 
 | Endpoint | Purpose |
 | --- | --- |
+| `POST /api/analyses` | Same-origin WebApp façade. It forwards cookie and idempotency data, but injects `API_TOKEN` only on the server. |
 | `POST /v1/analyses` | Analyze a TikTok URL. Requires `Idempotency-Key`; a new key may return a URL cache hit. |
 | `GET /v1/analyses/:analysisId` | Read an analysis only when it is linked to the current browser session. |
 | `POST /v1/analyses/:analysisId/places/:placeId/save` | Explicitly save a provider-verified place linked to that analysis. |
 | `GET /v1/places` | Read the current browser session's saved library. |
 | `POST /internal/probes/tiktok` | Fixed-URL operational probe; requires `PROBE_TOKEN`, accepts no user URL. |
 
-The direct API remains intentionally narrow until the WebApp supplies the
-user-facing interaction model and M2.7 adds per-user cost limits.
+The direct `/v1` API remains intentionally narrow and protected while M2.7
+adds per-user cost limits to the WebApp flow.
+
+The M2.5 WebApp is review-only: it renders safe acquired evidence, extracted
+candidates, optional support signals and provider-verified places. It does not
+save a place or expose provider credentials; confirmation stays in M2.6.
 
 ## Operations
 

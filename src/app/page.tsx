@@ -1,13 +1,12 @@
+import AnalysisForm from "./analysis-form.js";
+
 export default function HomePage() {
-  return (
-    <main>
+  return <main>
+    <section className="hero" aria-labelledby="page-title">
       <p className="eyebrow">SavePlace</p>
-      <h1>Save places from social recommendations, with evidence.</h1>
-      <p className="lede">
-        TikTok analysis and your private saved-place library are being connected
-        to this WebApp next. A language model can suggest candidates; only a
-        place provider verifies a location.
-      </p>
-    </main>
-  );
+      <h1 id="page-title">Save the place, not the guess.</h1>
+      <p className="lede">Paste a public TikTok recommendation. SavePlace shows the evidence, candidate places and locations verified by a place provider.</p>
+      <AnalysisForm />
+    </section>
+  </main>;
 }
