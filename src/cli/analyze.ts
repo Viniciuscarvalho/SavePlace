@@ -1,4 +1,5 @@
 import { AnalyzeSource } from "../pipeline/analyze-source.js";
+import { TypeSafeEvidenceJudge } from "../evidence/typesafe-evidence-judge.js";
 import { ContentSourceRouter } from "../ingestion/content-source.js";
 import { InstagramSource } from "../ingestion/instagram-source.js";
 import { TikTokSource } from "../ingestion/tiktok-source.js";
@@ -43,6 +44,7 @@ if (!input) {
     ]),
     new OpenAIPlaceExtractor(process.env.OPENAI_API_KEY?.trim() ? { apiKey: process.env.OPENAI_API_KEY } : {}),
     new PlaceResolver(placeProvider),
+    new TypeSafeEvidenceJudge({ apiKey: process.env.TYPESAFE_API_KEY }),
   );
   console.log(JSON.stringify(await pipeline.execute(input), null, 2));
 }

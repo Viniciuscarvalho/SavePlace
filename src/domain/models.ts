@@ -26,6 +26,21 @@ export const PlaceCandidateSchema = z.object({
 });
 export type PlaceCandidate = z.infer<typeof PlaceCandidateSchema>;
 
+export const CandidateEvidenceSupportStatusSchema = z.enum(["supports", "ambiguous", "does_not_support", "unavailable"]);
+export type CandidateEvidenceSupportStatus = z.infer<typeof CandidateEvidenceSupportStatusSchema>;
+
+export const CandidateEvidenceSupportSchema = z.object({
+  candidateIndex: z.number().int().nonnegative(),
+  status: CandidateEvidenceSupportStatusSchema,
+  confidence: z.number().min(0).max(1).optional(),
+  probabilities: z.object({
+    supports: z.number().min(0).max(1),
+    ambiguous: z.number().min(0).max(1),
+    does_not_support: z.number().min(0).max(1),
+  }).optional(),
+});
+export type CandidateEvidenceSupport = z.infer<typeof CandidateEvidenceSupportSchema>;
+
 export const ResolvedPlaceSchema = z.object({
   name: z.string(), normalizedName: z.string(), category: PlaceCategorySchema,
   subcategory: z.string().optional(), address: z.string(), city: z.string(),
@@ -74,6 +89,8 @@ export type AnalysisResult = {
   source: { input: string; platform: Platform; canonicalUrl?: string; contentId?: string };
   evidence: Evidence[];
   candidates: PlaceCandidate[];
+  /** Optional support signal only; PlaceProvider verification remains authoritative. */
+  candidateEvidenceSupport?: CandidateEvidenceSupport[];
   places: ResolvedPlace[];
   /** Optional while legacy M0 fixture results remain readable. New pipeline runs always populate it. */
   mentions?: AnalysisPlaceMention[];
@@ -97,6 +114,16 @@ export type AnalysisResult = {
       estimatedCostUsd?: number;
       unpricedRequestCount: number;
       usage: ProviderUsage[];
+    };
+    evidenceJudgment?: {
+      status: "completed" | "unavailable" | "failed";
+      provider: "typesafe";
+      model: string;
+      promptVersion: string;
+      durationMs: number;
+      inputTokens: number;
+      outputTokens: number;
+      estimatedCostUsd: number;
     };
   };
   reason?: string;

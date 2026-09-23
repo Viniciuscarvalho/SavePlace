@@ -4,6 +4,7 @@ import type { AuditablePlaceExtractor, ExtractionRun } from "../src/extraction/p
 import { ContentSourceRouter, type ContentSource } from "../src/ingestion/content-source.js";
 import { AnalyzeSource, deduplicateResolvedPlaces } from "../src/pipeline/analyze-source.js";
 import { PlaceResolver, type PlaceMatch, type PlaceProvider } from "../src/resolution/place-resolver.js";
+import type { CandidateEvidenceJudge } from "../src/evidence/typesafe-evidence-judge.js";
 
 const source: SourceEvidence = {
   input: "https://vt.tiktok.com/example/",
@@ -57,6 +58,25 @@ describe("AnalyzeSource", () => {
     expect(result.places[0]).toMatchObject({ verified: true, provider: "test", extractionConfidence: 0.96 });
     expect(result.mentions).toEqual([{ candidate, place: result.places[0] }]);
     expect(result.processing.extraction).toEqual({ status: "completed", ...trace.attribution });
+  });
+
+  it("keeps provider verification unchanged when evidence support does not support a candidate", async () => {
+    const evidenceJudge: CandidateEvidenceJudge = {
+      judge: async () => ({
+        support: [{ candidateIndex: 0, status: "does_not_support", confidence: 0.99, probabilities: { supports: 0, ambiguous: 0.01, does_not_support: 0.99 } }],
+        attribution: { status: "completed", provider: "typesafe", model: "fake", promptVersion: "test", durationMs: 1, inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 },
+      }),
+    };
+    const pipeline = new AnalyzeSource(new ContentSourceRouter([contentSource]), extractor, new PlaceResolver(provider), evidenceJudge);
+
+    const result = await pipeline.execute(source.input);
+
+    expect(result).toMatchObject({
+      status: "completed",
+      places: [{ verified: true, provider: "test" }],
+      candidateEvidenceSupport: [{ status: "does_not_support" }],
+      processing: { evidenceJudgment: { provider: "typesafe", status: "completed" } },
+    });
   });
 
   it("deduplicates final places by provider identity while retaining the strongest confidence", () => {
