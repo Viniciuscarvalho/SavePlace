@@ -4,5 +4,6 @@ node_modules/
 .codex/
 coverage/
 dist/
+.next/
 docs/adr/
 evals/results/

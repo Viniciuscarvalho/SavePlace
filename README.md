@@ -12,10 +12,11 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.2 private-analysis foundation.** TikTok acquisition,
-> evidence-bound extraction, Google place verification, PostgreSQL persistence,
-> cache, idempotency and explicit saved-place confirmation have been validated
-> on Railway. The WebApp is the next milestone.
+> **Status — M2.3 Next.js shell.** TikTok acquisition, evidence-bound
+> extraction, Google place verification, PostgreSQL persistence, cache,
+> idempotency and explicit saved-place confirmation have been validated on
+> Railway. The WebApp now has a small, safe entry point; its analysis and
+> library screens follow next.
 
 ## The promise
 
@@ -44,6 +45,8 @@ location.
   opaque browser session.
 - Railway smoke checks exercise deployed acquisition plus the private analysis
   read, replay, cache, explicit save and library contracts.
+- A Next.js App Router shell serves the product entry point and the same
+  server-owned HTTP contract; it exposes no provider credentials or raw media.
 
 Instagram is deliberately not part of the supported product path yet: its
 official API requires a professional-account setup. The adapter fails safely
@@ -56,6 +59,12 @@ npm install
 cp .env.example .env
 npm run typecheck
 npm test
+```
+
+Run the local WebApp at `http://localhost:3000`:
+
+```bash
+npm run dev
 ```
 
 Analyze a public TikTok URL locally:

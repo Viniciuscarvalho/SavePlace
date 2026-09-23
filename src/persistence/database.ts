@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema.js";
 
-export function databaseUrlFromEnvironment(environment: NodeJS.ProcessEnv = process.env): string {
+export function databaseUrlFromEnvironment(environment: { DATABASE_URL?: string | undefined } = { DATABASE_URL: process.env.DATABASE_URL }): string {
   const databaseUrl = environment.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("DATABASE_URL must be set.");
 
