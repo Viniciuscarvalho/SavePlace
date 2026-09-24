@@ -193,6 +193,7 @@ Copy `.env.example` to an ignored `.env`; no real key belongs in Git.
 | `DATABASE_URL` | PostgreSQL connection for persistence. On Railway, reference the Postgres service variable. |
 | `API_TOKEN` | Server-side gate for direct product and metrics API calls. |
 | `SAVEPLACE_USER_ANALYSIS_LIMIT` | Optional positive integer; uncached pipeline starts per browser session and UTC month (default: `10`). |
+| `M2_SMOKE_TIKTOK_URL` | Public TikTok URL known to resolve to a verified place; required only by the opt-in M2 Railway smoke. |
 | `PROBE_TOKEN` | Authenticates the fixed Railway probe. |
 | `SAVEPLACE_PROBE_URL`, `SAVEPLACE_API_URL` | Trusted-terminal targets for probe and persisted-session smoke checks. |
 | `INSTAGRAM_OEMBED_ACCESS_TOKEN`, `INSTAGRAM_OEMBED_ENDPOINT`, `INSTAGRAM_OEMBED_TEST_URL` | Optional official Instagram oEmbed integration and its opt-in contract test. |
@@ -225,6 +226,15 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-railway.ts
 # deployed analysis, private read, replay, cache, explicit save and library read
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
 
+# local browser journey with fake same-origin product responses
+npx playwright install chromium
+npm run test:e2e
+
+# deployed session save, update and removal; may call providers on a cache miss
+RUN_M2_RAILWAY_SMOKE=1 \
+M2_SMOKE_TIKTOK_URL="https://vt.tiktok.com/..." \
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m2-railway.ts
+
 # aggregate operational metrics through the direct server token
 curl -H "Authorization: Bearer $API_TOKEN" "$SAVEPLACE_API_URL/v1/metrics?period=2026-09"
 ```
@@ -253,6 +263,8 @@ Google contract price is not configured; SavePlace never invents a price.
 | `npm run test:integration:google-places` | Opt-in Google Places contract test. |
 | `npm run test:railway:smoke` | Run the authenticated fixed-URL Railway probe when its variables are already exported. |
 | `npm run test:railway:m1` | Run the complete remote M1 contract check when its variables are already exported. |
+| `npm run test:e2e` | Run the local browser journey with fake same-origin product responses and no provider calls. |
+| `npm run test:railway:m2` | Run the opt-in deployed M2 session journey; requires `RUN_M2_RAILWAY_SMOKE=1` and `M2_SMOKE_TIKTOK_URL`. |
 | `npm run eval:m0` | Run deterministic M0 evaluation fixtures. |
 | `npm run eval:m0:live` / `npm run eval:m0:gate` | Run paid live evaluation or enforce its quality gate. |
 | `npm run db:generate` | Generate a reviewed Drizzle migration. |

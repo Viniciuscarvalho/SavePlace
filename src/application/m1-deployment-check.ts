@@ -36,6 +36,16 @@ const SavedPlacesResponseSchema = z.object({
   })),
 });
 
+const UpdatedSavedPlaceResponseSchema = z.object({
+  place: z.object({
+    userPlaceId: z.string().uuid(),
+    id: z.string().uuid(),
+    status: z.literal("visited"),
+    favorite: z.literal(true),
+    notes: z.literal("M2 release smoke"),
+  }),
+});
+
 export const M1_SMOKE_TIKTOK_URL = "https://vt.tiktok.com/ZSq4UprxR/";
 
 export type M1DeploymentCheckReport = {
@@ -48,15 +58,60 @@ export type M1DeploymentCheckReport = {
   userPlaceId: string;
 };
 
+export type M2DeploymentCheckReport = M1DeploymentCheckReport & {
+  libraryMutation: "updated_and_removed";
+};
+
 export class M1DeploymentCheckError extends Error {}
 
-export async function runM1DeploymentCheck(options: {
+type DeploymentCheckOptions = {
   baseUrl: string;
   apiToken: string;
   sourceUrl?: string;
   fetchImpl?: typeof fetch;
   idempotencyKeyFactory?: () => string;
-}): Promise<M1DeploymentCheckReport> {
+};
+
+export async function runM1DeploymentCheck(options: DeploymentCheckOptions): Promise<M1DeploymentCheckReport> {
+  return (await runBaseDeploymentCheck(options)).report;
+}
+
+/** Extends the M1 smoke with the private-library mutation and cleanup path. */
+export async function runM2DeploymentCheck(options: DeploymentCheckOptions): Promise<M2DeploymentCheckReport> {
+  const check = await runBaseDeploymentCheck(options);
+  const updated = UpdatedSavedPlaceResponseSchema.parse(await requestJson(check.fetchImpl, new URL(`/v1/places/${encodeURIComponent(check.report.userPlaceId)}`, check.baseUrl), {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${check.apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: "visited", favorite: true, notes: "M2 release smoke" }),
+  }, check.session));
+  if (updated.place.userPlaceId !== check.report.userPlaceId || updated.place.id !== check.report.savedPlaceId) {
+    throw new M1DeploymentCheckError("The saved-place update did not preserve the confirmed provider place.");
+  }
+
+  await requestJson(check.fetchImpl, new URL(`/v1/places/${encodeURIComponent(check.report.userPlaceId)}`, check.baseUrl), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${check.apiToken}` },
+  }, check.session);
+  const library = SavedPlacesResponseSchema.parse(await requestJson(check.fetchImpl, new URL("/v1/places", check.baseUrl), {
+    headers: { Authorization: `Bearer ${check.apiToken}` },
+  }, check.session));
+  if (library.places.some((place) => place.userPlaceId === check.report.userPlaceId)) {
+    throw new M1DeploymentCheckError("The M2 smoke saved place remained in the browser-session library after removal.");
+  }
+
+  return { ...check.report, libraryMutation: "updated_and_removed" };
+}
+
+async function runBaseDeploymentCheck(options: DeploymentCheckOptions): Promise<{
+  report: M1DeploymentCheckReport;
+  baseUrl: URL;
+  apiToken: string;
+  fetchImpl: typeof fetch;
+  session: RequestSession;
+}> {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   if (!options.apiToken.trim()) throw new M1DeploymentCheckError("API_TOKEN must be set.");
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -109,13 +164,19 @@ export async function runM1DeploymentCheck(options: {
   }
 
   return {
-    status: "ok",
-    analysisId: first.analysisId,
-    firstCache: first.cache,
-    cachedCache: cached.cache,
-    verifiedPlaceCount: first.verifiedPlaceReferences.length,
-    savedPlaceId: reference.placeId,
-    userPlaceId: saved.place.userPlaceId,
+    report: {
+      status: "ok",
+      analysisId: first.analysisId,
+      firstCache: first.cache,
+      cachedCache: cached.cache,
+      verifiedPlaceCount: first.verifiedPlaceReferences.length,
+      savedPlaceId: reference.placeId,
+      userPlaceId: saved.place.userPlaceId,
+    },
+    baseUrl,
+    apiToken: options.apiToken,
+    fetchImpl,
+    session,
   };
 }
 
