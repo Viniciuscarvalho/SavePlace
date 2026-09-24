@@ -16,6 +16,8 @@
     "test:integration:google-places": "RUN_GOOGLE_PLACES_INTEGRATION=1 vitest run tests/google-places-provider.integration.test.ts",
     "test:railway:smoke": "tsx src/cli/smoke-railway.ts",
     "test:railway:m1": "tsx src/cli/smoke-m1-railway.ts",
+    "test:railway:m2": "tsx src/cli/smoke-m2-railway.ts",
+    "test:e2e": "playwright test",
     "eval:m0": "tsx src/cli/eval-m0.ts",
     "eval:m0:live": "RUN_M0_EVAL_LIVE=1 tsx src/cli/eval-m0.ts --live",
     "eval:m0:gate": "RUN_M0_EVAL_LIVE=1 tsx src/cli/eval-m0.ts --live --gate",
@@ -32,6 +34,7 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",

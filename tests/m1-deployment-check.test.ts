@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runM1DeploymentCheck } from "../src/application/m1-deployment-check.js";
+import { runM1DeploymentCheck, runM2DeploymentCheck } from "../src/application/m1-deployment-check.js";
 
 const analysisId = "00000000-0000-4000-8000-000000000001";
 const placeId = "00000000-0000-4000-8000-000000000002";
@@ -51,6 +51,37 @@ describe("M1 deployment check", () => {
     expect(replayHeaders.get("idempotency-key")).toBe("m1-smoke-test");
     expect(cachedHeaders.get("idempotency-key")).toBe("m1-smoke-cache-test");
     expect(replayHeaders.get("cookie")).toBe("saveplace_session=session-a");
+  });
+
+  it("extends the session journey through update and removal without leaving a saved place behind", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(response({ status: "ok", analysisApiConfigured: true }))
+      .mockResolvedValueOnce(response(analysis("miss", false), 200, { "set-cookie": "saveplace_session=session-a; Path=/; HttpOnly" }))
+      .mockResolvedValueOnce(response(analysis("miss", true)))
+      .mockResolvedValueOnce(response(analysis("hit", false)))
+      .mockResolvedValueOnce(response({ analysisId, verifiedPlaceReferences: [{ placeId, provider: "google_places", providerPlaceId: "ChIJexample" }], result: { source: { platform: "tiktok" } } }))
+      .mockResolvedValueOnce(response({ place: { id: placeId, userPlaceId } }))
+      .mockResolvedValueOnce(response({ places: [{ id: placeId, userPlaceId }] }))
+      .mockResolvedValueOnce(response({ place: { id: placeId, userPlaceId, status: "visited", favorite: true, notes: "M2 release smoke" } }))
+      .mockResolvedValueOnce(response({}))
+      .mockResolvedValueOnce(response({ places: [] }));
+
+    await expect(runM2DeploymentCheck({
+      baseUrl: "https://saveplace.example",
+      apiToken: "test-token",
+      idempotencyKeyFactory: () => "test",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })).resolves.toMatchObject({
+      status: "ok",
+      savedPlaceId: placeId,
+      userPlaceId,
+      libraryMutation: "updated_and_removed",
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(10);
+    expect(fetchImpl.mock.calls[7]?.[0].pathname).toBe(`/v1/places/${userPlaceId}`);
+    expect(fetchImpl.mock.calls[7]?.[1]?.method).toBe("PATCH");
+    expect(fetchImpl.mock.calls[8]?.[1]?.method).toBe("DELETE");
   });
 
   it("fails before confirmation when the deployed pipeline has no verified place", async () => {
