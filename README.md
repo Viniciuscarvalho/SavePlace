@@ -12,11 +12,11 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.6 saved-place library.** TikTok acquisition, evidence-bound
+> **Status — M2.7 cost guardrails.** TikTok acquisition, evidence-bound
 > extraction, Google place verification, PostgreSQL persistence, cache,
 > idempotency and explicit saved-place confirmation have been validated on
-> Railway. The WebApp now supports analysis review and an explicitly managed
-> private saved-place library.
+> Railway. The WebApp now supports analysis review, a private saved-place
+> library, and a per-session cap on uncached analysis starts.
 
 ## The promise
 
@@ -50,6 +50,9 @@ location.
   credentials or raw media.
 - Provider-verified places are saved only after a click, then can be listed,
   marked visited or favorite, noted and removed from the private library.
+- A browser session is limited to 10 uncached analyses per UTC calendar month
+  by default. Cache hits and idempotency replays stay free; the limit is
+  configurable only on the server.
 - When `TYPESAFE_API_KEY` is configured, one batched Choice labels each
   candidate as supporting, ambiguous or unsupported evidence. It never
   verifies a place or saves one.

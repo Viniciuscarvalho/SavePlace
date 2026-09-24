@@ -36,6 +36,13 @@ export class IdempotencyInProgressError extends Error {
   }
 }
 
+/** A deliberate client-safe failure that must replay without repeating work. */
+export class IdempotencyResponseError extends Error {
+  constructor(public readonly response: StoredIdempotencyResponse) {
+    super(String(response.responseBody.error ?? "operation_failed"));
+  }
+}
+
 export type IdempotentExecution<T extends Record<string, unknown>> =
   | { replayed: false; response: { status: number; body: T } }
   | { replayed: true; response: StoredIdempotencyResponse };
@@ -58,7 +65,9 @@ export class IdempotentOperation {
       await this.repository.complete(request, { responseStatus: response.status, responseBody: response.body });
       return { replayed: false, response };
     } catch (error) {
-      await this.repository.fail(request, { responseStatus: 500, responseBody: { error: "operation_failed" } });
+      await this.repository.fail(request, error instanceof IdempotencyResponseError
+        ? error.response
+        : { responseStatus: 500, responseBody: { error: "operation_failed" } });
       throw error;
     }
   }
