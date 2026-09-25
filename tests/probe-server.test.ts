@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResult } from "../src/domain/models.js";
 import { AnalysisPlaceNotFoundError, type SavedPlace } from "../src/application/saved-place-service.js";
 import { BrowserSessionService, type BrowserSessionRecord, type BrowserSessionRepository } from "../src/application/browser-session-service.js";
-import { createProbeServer, createProductRequestHandler, type AnalysisApi, type SavedPlacesApi, type SourceAnalyzer } from "../src/http/probe-server.js";
+import { createProbeServer, createProductRequestHandler, type AnalysisApi, type MetricsApi, type SavedPlacesApi, type SourceAnalyzer } from "../src/http/probe-server.js";
 
 const servers: ReturnType<typeof createProbeServer>[] = [];
 
@@ -33,7 +33,7 @@ function browserSessions(): BrowserSessionService {
   });
 }
 
-async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi; savedPlacesApi?: SavedPlacesApi; browserSessions?: BrowserSessionService } = { probeToken: "test-token" }): Promise<string> {
+async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: string; apiToken?: string; analysisApi?: AnalysisApi; savedPlacesApi?: SavedPlacesApi; browserSessions?: BrowserSessionService; metricsApi?: MetricsApi } = { probeToken: "test-token" }): Promise<string> {
   const server = createProbeServer({
     analyzer,
     probeToken: options.probeToken,
@@ -41,6 +41,7 @@ async function startServer(analyzer: SourceAnalyzer, options: { probeToken?: str
     analysisApi: options.analysisApi,
     savedPlacesApi: options.savedPlacesApi,
     browserSessions: options.browserSessions,
+    metricsApi: options.metricsApi,
   });
   servers.push(server);
   await new Promise<void>((resolve, reject) => {
@@ -161,6 +162,20 @@ describe("Railway probe server", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ place: savedPlace });
     expect(confirm).toHaveBeenCalledWith("browser-user-0", "analysis-1", "place-1");
+  });
+
+  it("exposes aggregate operational metrics only through the server token", async () => {
+    const summary = vi.fn().mockResolvedValue({ period: "2026-09", analysisCount: 3, cacheHitRate: 0.5, p50LatencyMs: 20, p95LatencyMs: 40, estimatedCostUsd: 0.01, unpricedAnalysisCount: 0 });
+    const baseUrl = await startServer(
+      { execute: vi.fn() },
+      { probeToken: "test-token", apiToken: "api-token", metricsApi: { summary } },
+    );
+
+    await expect(fetch(`${baseUrl}/v1/metrics?period=2026-09`).then((response) => response.status)).resolves.toBe(401);
+    const response = await fetch(`${baseUrl}/v1/metrics?period=2026-09`, { headers: { Authorization: "Bearer api-token" } });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ analysisCount: 3, p95LatencyMs: 40 });
+    expect(summary).toHaveBeenCalledWith("2026-09");
   });
 
   it("updates and removes a saved place only through the resolved browser session", async () => {

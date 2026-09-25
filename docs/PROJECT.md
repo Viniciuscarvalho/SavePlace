@@ -98,9 +98,9 @@ its user on the server; it never accepts a user ID, bearer token or provider
 credential from the browser. The URL-analysis cache remains global, while
 idempotency operations and saved places are private to that session.
 
-`API_TOKEN` remains a temporary operational gate for the direct HTTP API until
-M2.7 supplies per-user cost limits. It is never sent to a browser; the future
-WebApp will call the application server with its already-resolved session.
+`API_TOKEN` remains a server-side operational gate for the direct HTTP API. It
+is never sent to a browser; the WebApp calls the application server with its
+already-resolved session.
 
 ### M2.2 — private analysis history
 
@@ -138,6 +138,21 @@ linked to its own analysis; it can then change `want_to_go`/`visited`, favorite
 state and note, or remove its private `user_places` link. It never deletes the
 shared verified-place record, and no analysis saves a place automatically.
 
+### M2.7 — cost guardrails and aggregate metrics
+
+Before an uncached pipeline can start, a transactional PostgreSQL counter
+claims one quota unit for the browser-owned user and UTC calendar month. The
+default is 10, configured only by `SAVEPLACE_USER_ANALYSIS_LIMIT`; cache hits
+and idempotency replays consume no quota. A rejected request returns HTTP 429
+with `error: "user_analysis_limit_exceeded"` and `retryAt` before it can call
+TikTok, OpenAI, TypeSafe or Google.
+
+Separate `analysis_metrics` rows contain only cache outcome, latency and an
+estimated cost when all configured providers were priced. They intentionally
+omit user ID, URL, evidence and provider payload. The direct, token-protected
+`GET /v1/metrics?period=YYYY-MM` exposes the cache rate, P50/P95 latency and
+estimated cost; `null` cost means at least one analysis was unpriced.
+
 ## HTTP contract
 
 `GET /health` is public and returns only health plus safe configuration
@@ -156,10 +171,11 @@ session cookie.
 | `GET /v1/places` | Read the current browser session's saved library. |
 | `PATCH /v1/places/:userPlaceId` | Change only the current user's status, favorite flag or note. |
 | `DELETE /v1/places/:userPlaceId` | Remove only the current user's library link. |
+| `GET /v1/metrics?period=YYYY-MM` | Read no-PII aggregate cache, latency and cost metrics through the direct server token. |
 | `POST /internal/probes/tiktok` | Fixed-URL operational probe; requires `PROBE_TOKEN`, accepts no user URL. |
 
-The direct `/v1` API remains intentionally narrow and protected while M2.7
-adds per-user cost limits to the WebApp flow.
+The direct `/v1` API remains intentionally narrow and protected. Browser
+analysis calls are additionally protected by the per-session cost limit.
 
 The M2.6 WebApp renders safe acquired evidence, extracted candidates, optional
 support signals and provider-verified places. It exposes no provider
@@ -175,7 +191,9 @@ Copy `.env.example` to an ignored `.env`; no real key belongs in Git.
 | `TYPESAFE_API_KEY` | Optional candidate-evidence support; unavailable without it and never used for verification or saving. |
 | `GOOGLE_MAPS_API_KEY` | Optional Google place verification. |
 | `DATABASE_URL` | PostgreSQL connection for persistence. On Railway, reference the Postgres service variable. |
-| `API_TOKEN` | Temporary server-side gate for direct product API calls until M2.7. |
+| `API_TOKEN` | Server-side gate for direct product and metrics API calls. |
+| `SAVEPLACE_USER_ANALYSIS_LIMIT` | Optional positive integer; uncached pipeline starts per browser session and UTC month (default: `10`). |
+| `M2_SMOKE_TIKTOK_URL` | Public TikTok URL known to resolve to a verified place; required only by the opt-in M2 Railway smoke. |
 | `PROBE_TOKEN` | Authenticates the fixed Railway probe. |
 | `SAVEPLACE_PROBE_URL`, `SAVEPLACE_API_URL` | Trusted-terminal targets for probe and persisted-session smoke checks. |
 | `INSTAGRAM_OEMBED_ACCESS_TOKEN`, `INSTAGRAM_OEMBED_ENDPOINT`, `INSTAGRAM_OEMBED_TEST_URL` | Optional official Instagram oEmbed integration and its opt-in contract test. |
@@ -207,6 +225,18 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-railway.ts
 
 # deployed analysis, private read, replay, cache, explicit save and library read
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
+
+# local browser journey with fake same-origin product responses
+npx playwright install chromium
+npm run test:e2e
+
+# deployed session save, update and removal; may call providers on a cache miss
+RUN_M2_RAILWAY_SMOKE=1 \
+M2_SMOKE_TIKTOK_URL="https://vt.tiktok.com/..." \
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m2-railway.ts
+
+# aggregate operational metrics through the direct server token
+curl -H "Authorization: Bearer $API_TOKEN" "$SAVEPLACE_API_URL/v1/metrics?period=2026-09"
 ```
 
 Live evaluation is opt-in because it can call paid providers:
@@ -233,6 +263,8 @@ Google contract price is not configured; SavePlace never invents a price.
 | `npm run test:integration:google-places` | Opt-in Google Places contract test. |
 | `npm run test:railway:smoke` | Run the authenticated fixed-URL Railway probe when its variables are already exported. |
 | `npm run test:railway:m1` | Run the complete remote M1 contract check when its variables are already exported. |
+| `npm run test:e2e` | Run the local browser journey with fake same-origin product responses and no provider calls. |
+| `npm run test:railway:m2` | Run the opt-in deployed M2 session journey; requires `RUN_M2_RAILWAY_SMOKE=1` and `M2_SMOKE_TIKTOK_URL`. |
 | `npm run eval:m0` | Run deterministic M0 evaluation fixtures. |
 | `npm run eval:m0:live` / `npm run eval:m0:gate` | Run paid live evaluation or enforce its quality gate. |
 | `npm run db:generate` | Generate a reviewed Drizzle migration. |

@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, or } from "drizzle-orm";
+import { and, eq, gt, lt, or, sql } from "drizzle-orm";
 import type { AnalysisResult } from "../domain/models.js";
 import {
   cacheableSource,
@@ -17,7 +17,7 @@ import type {
 } from "./idempotency.js";
 import type { SavePlaceDatabase } from "./database.js";
 import { mentionsForPersistence, providerPlaceIdentity, verifiedPlacesForPersistence } from "./analysis-place-persistence.js";
-import { idempotencyOperations, placeMentions, places, sessions, sourceAliases, sourceAnalyses, sources, userAnalyses, userPlaces, users } from "./schema.js";
+import { analysisMetrics, idempotencyOperations, placeMentions, places, sessions, sourceAliases, sourceAnalyses, sources, userAnalyses, userAnalysisUsage, userPlaces, users } from "./schema.js";
 import type {
   AnalysisPlaceLookup,
   SavedPlace as UserSavedPlace,
@@ -27,6 +27,7 @@ import type {
 } from "../application/saved-place-service.js";
 import type { BrowserSessionRecord, BrowserSessionRepository } from "../application/browser-session-service.js";
 import type { UserAnalysisRepository } from "../application/analysis-api-service.js";
+import type { AnalysisUsageMetric, AnalysisUsageRepository } from "../application/analysis-usage-service.js";
 
 type DatabaseClient = SavePlaceDatabase;
 
@@ -56,7 +57,7 @@ function persistedPlaceId(provider: string, providerPlaceId: string, ids: Readon
   return id;
 }
 
-export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository, BrowserSessionRepository, UserAnalysisRepository {
+export class DrizzlePersistenceRepository implements AnalysisCacheRepository, IdempotencyRepository, SavedPlaceRepository, BrowserSessionRepository, UserAnalysisRepository, AnalysisUsageRepository {
   constructor(private readonly db: DatabaseClient) {}
 
   async findCachedAnalysis(key: AnalysisCacheKey): Promise<CachedAnalysis | undefined> {
@@ -122,6 +123,39 @@ export class DrizzlePersistenceRepository implements AnalysisCacheRepository, Id
       result: analysis.result as AnalysisResult,
       verifiedPlaceReferences: await this.verifiedPlaceReferences(analysis.analysisId),
     };
+  }
+
+  async tryConsumeUserAnalysis(input: { userId: string; period: string; limit: number }): Promise<boolean> {
+    await this.db.insert(users).values({ id: input.userId }).onConflictDoNothing();
+    const claimed = await this.db
+      .insert(userAnalysisUsage)
+      .values({ userId: input.userId, period: input.period, analysisCount: 1 })
+      .onConflictDoUpdate({
+        target: [userAnalysisUsage.userId, userAnalysisUsage.period],
+        set: { analysisCount: sql`${userAnalysisUsage.analysisCount} + 1`, updatedAt: new Date() },
+        where: lt(userAnalysisUsage.analysisCount, input.limit),
+      })
+      .returning({ id: userAnalysisUsage.id });
+    return claimed.length === 1;
+  }
+
+  async recordAnalysisMetric(metric: AnalysisUsageMetric): Promise<void> {
+    await this.db.insert(analysisMetrics).values({
+      period: metric.period,
+      cache: metric.cache,
+      durationMs: Math.round(metric.durationMs),
+      ...(metric.estimatedCostUsd === null ? {} : { estimatedCostUsd: decimal(metric.estimatedCostUsd, 6, "estimatedCostUsd") }),
+    });
+  }
+
+  async listAnalysisMetrics(period: string): Promise<AnalysisUsageMetric[]> {
+    const rows = await this.db
+      .select({ cache: analysisMetrics.cache, durationMs: analysisMetrics.durationMs, estimatedCostUsd: analysisMetrics.estimatedCostUsd })
+      .from(analysisMetrics)
+      .where(eq(analysisMetrics.period, period));
+    return rows.flatMap((row) => row.cache === "hit" || row.cache === "miss" || row.cache === "skipped"
+      ? [{ period, cache: row.cache, durationMs: row.durationMs, estimatedCostUsd: row.estimatedCostUsd === null ? null : Number(row.estimatedCostUsd) }]
+      : []);
   }
 
   async storeAnalysis(write: AnalysisCacheWrite): Promise<CachedAnalysis> {

@@ -29,6 +29,13 @@
       "when": 1790081158577,
       "tag": "0003_m2_user_analysis_links",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790193186014,
+      "tag": "0004_m2_cost_guardrails",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import {
   type SavedPlaceUpdate,
 } from "../application/saved-place-service.js";
 import type { BrowserSessionService, ResolvedBrowserSession } from "../application/browser-session-service.js";
+import type { AnalysisUsageSummary } from "../application/analysis-usage-service.js";
 
 export const TIKTOK_ACCEPTANCE_URL = "https://vt.tiktok.com/ZSq4UprxR/";
 const AnalysisIdSchema = z.string().uuid();
@@ -39,6 +40,10 @@ export interface SavedPlacesApi {
   remove(userId: string, userPlaceId: string): Promise<void>;
 }
 
+export interface MetricsApi {
+  summary(period?: string): Promise<AnalysisUsageSummary>;
+}
+
 export type ProbeServerOptions = {
   analyzer: SourceAnalyzer;
   /** Omitted only when the deployment is misconfigured. */
@@ -48,6 +53,7 @@ export type ProbeServerOptions = {
   analysisApi?: AnalysisApi | undefined;
   savedPlacesApi?: SavedPlacesApi | undefined;
   browserSessions?: BrowserSessionService | undefined;
+  metricsApi?: MetricsApi | undefined;
   acceptanceUrl?: string;
 };
 
@@ -95,6 +101,10 @@ export function createProductRequestHandler(options: ProbeServerOptions): (reque
 
       if (url.pathname === "/v1/places") {
         return handleSavedPlacesApi(request, options.savedPlacesApi, options.browserSessions, apiToken);
+      }
+
+      if (url.pathname === "/v1/metrics") {
+        return handleMetricsApi(request, options.metricsApi, apiToken, url.searchParams.get("period") ?? undefined);
       }
 
       const userPlaceMatch = /^\/v1\/places\/([^/]+)$/.exec(url.pathname);
@@ -219,6 +229,17 @@ async function handleUserPlaceApi(request: Request, api: SavedPlacesApi | undefi
   } catch (error) {
     if (error instanceof SavedPlaceNotFoundError) return jsonResponse(404, { error: "saved_place_not_found" }, sessionHeaders(session));
     return jsonResponse(502, { error: "saved_place_failed" }, sessionHeaders(session));
+  }
+}
+
+async function handleMetricsApi(request: Request, api: MetricsApi | undefined, apiToken: string | undefined, period: string | undefined): Promise<Response> {
+  if (request.method !== "GET") return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET" });
+  if (!api || !apiToken) return jsonResponse(503, { error: "metrics_unavailable" });
+  if (!hasValidBearerToken(request, apiToken)) return jsonResponse(401, { error: "unauthorized" });
+  try {
+    return jsonResponse(200, await api.summary(period));
+  } catch {
+    return jsonResponse(400, { error: "invalid_period" });
   }
 }
 

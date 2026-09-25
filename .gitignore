@@ -5,5 +5,7 @@ node_modules/
 coverage/
 dist/
 .next/
+test-results/
+playwright-report/
 docs/adr/
 evals/results/

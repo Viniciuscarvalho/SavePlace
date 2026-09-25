@@ -152,6 +152,29 @@ export const userPlaces = pgTable("user_places", {
   index("user_places_user_id_idx").on(table.userId),
 ]);
 
+/** A per-user counter guards uncached pipeline starts without retaining URLs or provider payloads. */
+export const userAnalysisUsage = pgTable("user_analysis_usage", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 128 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  period: varchar("period", { length: 7 }).notNull(),
+  analysisCount: integer("analysis_count").notNull().default(0),
+  ...timestampColumns,
+}, (table) => [
+  uniqueIndex("user_analysis_usage_user_period_key").on(table.userId, table.period),
+]);
+
+/** Observability events intentionally omit user, URL, evidence and provider payload data. */
+export const analysisMetrics = pgTable("analysis_metrics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  period: varchar("period", { length: 7 }).notNull(),
+  cache: varchar("cache", { length: 16 }).notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  estimatedCostUsd: numeric("estimated_cost_usd", { precision: 14, scale: 6 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("analysis_metrics_period_idx").on(table.period),
+]);
+
 /** Retries return their first response rather than repeat a paid analysis. */
 export const idempotencyOperations = pgTable("idempotency_operations", {
   id: uuid("id").defaultRandom().primaryKey(),

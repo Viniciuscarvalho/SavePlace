@@ -12,11 +12,11 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.6 saved-place library.** TikTok acquisition, evidence-bound
-> extraction, Google place verification, PostgreSQL persistence, cache,
-> idempotency and explicit saved-place confirmation have been validated on
-> Railway. The WebApp now supports analysis review and an explicitly managed
-> private saved-place library.
+> **Status — M2.8 pronto para validação remota.** TikTok acquisition,
+> evidence-bound extraction, Google place verification, PostgreSQL persistence,
+> cache, idempotency and explicit saved-place confirmation foram validados no
+> Railway. O WebApp já suporta revisão, biblioteca privada e limite por sessão;
+> o smoke completo de M2 deve passar após este deploy.
 
 ## The promise
 
@@ -50,9 +50,15 @@ location.
   credentials or raw media.
 - Provider-verified places are saved only after a click, then can be listed,
   marked visited or favorite, noted and removed from the private library.
+- A browser session is limited to 10 uncached analyses per UTC calendar month
+  by default. Cache hits and idempotency replays stay free; the limit is
+  configurable only on the server.
 - When `TYPESAFE_API_KEY` is configured, one batched Choice labels each
   candidate as supporting, ambiguous or unsupported evidence. It never
   verifies a place or saves one.
+- Playwright covers the browser URL → review → explicit save → library journey
+  with safe fake product responses; a separate opt-in command validates the
+  equivalent temporary session flow on Railway.
 
 Instagram is deliberately not part of the supported product path yet: its
 official API requires a professional-account setup. The adapter fails safely
@@ -87,6 +93,11 @@ environment variables:
 ```bash
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-railway.ts
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
+# one-time local browser install: npx playwright install chromium
+npm run test:e2e
+# M2 remote validation after deploy (requires a known verified TikTok URL)
+RUN_M2_RAILWAY_SMOKE=1 M2_SMOKE_TIKTOK_URL="https://vt.tiktok.com/..." \
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m2-railway.ts
 ```
 
 ## Read more
@@ -95,6 +106,7 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
 | --- | --- |
 | Product story, architecture, API contract, provider boundaries and M2 direction | [Project guide](docs/PROJECT.md) |
 | M2 WebApp scope and independently shippable PRs | [M2 plan](docs/M2.md) |
+| M2 local and deployed release evidence | [M2 release verification](docs/M2-RELEASE.md) |
 | M0 experiment, evidence-acquisition contract and evaluation rationale | [M0 spike](docs/M0.md) |
 | Adding an evaluation URL | [Evaluation case guide](evals/cases/README.md) |
 | Contributing safely | [Contributing](CONTRIBUTING.md) |
