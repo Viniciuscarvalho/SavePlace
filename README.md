@@ -12,11 +12,11 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.8 release validation.** TikTok acquisition, evidence-bound
-> extraction, Google place verification, PostgreSQL persistence, cache,
-> idempotency and explicit saved-place confirmation have been validated on
-> Railway. The WebApp now supports analysis review, a private saved-place
-> library, and a per-session cap on uncached analysis starts.
+> **Status — M2.8 pronto para validação remota.** TikTok acquisition,
+> evidence-bound extraction, Google place verification, PostgreSQL persistence,
+> cache, idempotency and explicit saved-place confirmation foram validados no
+> Railway. O WebApp já suporta revisão, biblioteca privada e limite por sessão;
+> o smoke completo de M2 deve passar após este deploy.
 
 ## The promise
 
@@ -95,6 +95,9 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-railway.ts
 node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m1-railway.ts
 # one-time local browser install: npx playwright install chromium
 npm run test:e2e
+# M2 remote validation after deploy (requires a known verified TikTok URL)
+RUN_M2_RAILWAY_SMOKE=1 M2_SMOKE_TIKTOK_URL="https://vt.tiktok.com/..." \
+node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m2-railway.ts
 ```
 
 ## Read more
