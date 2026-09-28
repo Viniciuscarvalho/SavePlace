@@ -13,14 +13,17 @@ import type { ProbeServerOptions } from "../http/probe-server.js";
 import { AnalyzeSource } from "../pipeline/analyze-source.js";
 import { TypeSafeEvidenceJudge } from "../evidence/typesafe-evidence-judge.js";
 import { GooglePlacesProvider } from "../resolution/google-places-provider.js";
+import { googleTextSearchPricingFromEnvironment } from "../resolution/google-places-pricing.js";
 import { EmptyPlaceProvider, PlaceResolver, type PlaceProvider } from "../resolution/place-resolver.js";
 
-function optionalEnvironment(environment: NodeJS.ProcessEnv, name: string): string | undefined {
+type Environment = Readonly<Record<string, string | undefined>>;
+
+function optionalEnvironment(environment: Environment, name: string): string | undefined {
   const value = environment[name]?.trim();
   return value || undefined;
 }
 
-function positiveIntegerEnvironment(environment: NodeJS.ProcessEnv, name: string, fallback: number): number {
+function positiveIntegerEnvironment(environment: Environment, name: string, fallback: number): number {
   const value = optionalEnvironment(environment, name);
   if (!value) return fallback;
   const parsed = Number(value);
@@ -29,11 +32,12 @@ function positiveIntegerEnvironment(environment: NodeJS.ProcessEnv, name: string
 }
 
 /** Creates the server-owned runtime used by both Next pages and route handlers. */
-export function createApplicationRuntime(environment: NodeJS.ProcessEnv = process.env): ProbeServerOptions {
+export function createApplicationRuntime(environment: Environment = process.env): ProbeServerOptions {
   const openAiApiKey = optionalEnvironment(environment, "OPENAI_API_KEY");
   const googleApiKey = optionalEnvironment(environment, "GOOGLE_MAPS_API_KEY");
+  const googlePricing = googleTextSearchPricingFromEnvironment(environment);
   const placeProvider: PlaceProvider = googleApiKey
-    ? new GooglePlacesProvider({ apiKey: googleApiKey })
+    ? new GooglePlacesProvider({ apiKey: googleApiKey, ...(googlePricing ? { pricing: googlePricing } : {}) })
     : new EmptyPlaceProvider();
   const analyzer = new AnalyzeSource(
     new ContentSourceRouter([new TikTokSource()]),
@@ -65,6 +69,7 @@ export function createApplicationRuntime(environment: NodeJS.ProcessEnv = proces
         source: "tiktok_oembed",
         extractor: openAiApiKey ? "openai" : "no_guess",
         placeProvider: googleApiKey ? "google_places_new" : "empty",
+        placeProviderPricing: googlePricing ?? "unconfigured",
         evidenceJudge: optionalEnvironment(environment, "TYPESAFE_API_KEY") ? "typesafe_jev_1_13" : "unavailable",
       }),
       usage,
