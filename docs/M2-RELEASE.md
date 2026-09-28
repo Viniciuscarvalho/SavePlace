@@ -1,8 +1,8 @@
 # M2 release verification
 
-M2 is ready for release validation when the local browser journey and the
-deployed session journey both pass. The two checks deliberately prove different
-boundaries.
+M2 passed release validation when the local browser journey and the deployed
+session journey both passed. The two checks deliberately prove different
+boundaries and remain the revalidation procedure for a future deployment.
 
 ## Local browser journey
 
@@ -36,5 +36,13 @@ reuse, reads the linked analysis, explicitly saves the verified place, updates
 it, removes it and confirms the library is empty. It may call configured
 providers when the chosen URL misses the cache, so it is intentionally opt-in.
 
-Record the command output and Railway deployment URL in the PR before calling
-M2 complete. A local Playwright pass is not a claim of deployed-provider proof.
+Record the command output and Railway deployment URL for a future deploy. A
+local Playwright pass alone is not a claim of deployed-provider proof.
+
+## Recorded validation
+
+The remote smoke passed after the M2 deployment. It created a fresh session,
+returned one provider-verified place, replayed idempotency, hit cache with a
+new key, then saved, updated and removed the temporary library item. The
+M2.7 aggregate metrics endpoint was also available. This is deployment-contract
+evidence, not a claim of product adoption or production-scale performance.

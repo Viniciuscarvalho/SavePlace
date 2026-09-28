@@ -12,11 +12,9 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M2.8 pronto para validação remota.** TikTok acquisition,
-> evidence-bound extraction, Google place verification, PostgreSQL persistence,
-> cache, idempotency and explicit saved-place confirmation foram validados no
-> Railway. O WebApp já suporta revisão, biblioteca privada e limite por sessão;
-> o smoke completo de M2 deve passar após este deploy.
+> **Status — M3.0 decision gates.** O M2 foi validado no Railway: análise,
+> cache, idempotência, local verificado, confirmação e biblioteca privada.
+> M3 mede valor, custo e latência antes de adicionar worker, fila ou login.
 
 ## The promise
 
@@ -107,6 +105,7 @@ node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/cli/smoke-m2-railway.ts
 | Product story, architecture, API contract, provider boundaries and M2 direction | [Project guide](docs/PROJECT.md) |
 | M2 WebApp scope and independently shippable PRs | [M2 plan](docs/M2.md) |
 | M2 local and deployed release evidence | [M2 release verification](docs/M2-RELEASE.md) |
+| M3 product, cost and scaling decision gates | [M3 plan](docs/M3.md) |
 | M0 experiment, evidence-acquisition contract and evaluation rationale | [M0 spike](docs/M0.md) |
 | Adding an evaluation URL | [Evaluation case guide](evals/cases/README.md) |
 | Contributing safely | [Contributing](CONTRIBUTING.md) |
