@@ -270,11 +270,11 @@ Google contract price is not configured; SavePlace never invents a price.
 | `npm run db:generate` | Generate a reviewed Drizzle migration. |
 | `npm run db:migrate` / `npm run db:migrate:production` | Apply committed migrations when `DATABASE_URL` is intentionally injected. |
 
-## M2 direction
+## M3 decision gates
 
-M2 turns the validated backend into a useful product without splitting the
-system prematurely. Keep a single Railway project and evolve only when metrics
-justify more infrastructure:
+M2 validated the useful product flow without splitting the system prematurely.
+M3 keeps the single Railway project and makes the next architecture decision
+from observed cost, funnel and latency data:
 
 ```text
 M1: Railway -> Node API + PostgreSQL
@@ -282,10 +282,10 @@ M2: Railway -> Web/API + PostgreSQL
 Later: Web + API + worker + PostgreSQL + queue + observability
 ```
 
-The M2 sequence, identity decision, optional TypeSafe evidence signal and
-independently shippable PRs are defined in the [M2 plan](M2.md). It keeps the
-existing place-verification rule intact while adding a browser-owned user scope
-and a small WebApp before introducing workers or queues.
+The M2 sequence, identity decision and optional TypeSafe evidence signal are in
+the [M2 plan](M2.md). The M3 gates and conditional PRs are in the [M3 plan](M3.md).
+They preserve the existing place-verification rule while preventing workers,
+queues and account recovery from becoming speculative infrastructure.
 
 M2.4 is implemented as one optional, batched TypeSafe Choice request per
 analysis. It records the returned model, prompt version, latency, tokens and
