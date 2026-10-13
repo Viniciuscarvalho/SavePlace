@@ -12,9 +12,11 @@ into provider-verified place data. It is both an AI-engineering portfolio case
 study and the foundation of a product: every decision is designed to remain
 useful when the first WebApp and contributors arrive.
 
-> **Status — M3.0 decision gates.** O M2 foi validado no Railway: análise,
-> cache, idempotência, local verificado, confirmação e biblioteca privada.
-> M3 mede valor, custo e latência antes de adicionar worker, fila ou login.
+> **Status — M3.1 provider pricing baseline.** O M2 foi validado no Railway:
+> análise, cache, idempotência, local verificado, confirmação e biblioteca
+> privada. M3 mede valor, custo e latência antes de adicionar worker, fila ou
+> login; custos Google só são atribuíveis quando preço, fonte e data efetiva do
+> contrato estão configurados no deploy.
 
 ## The promise
 

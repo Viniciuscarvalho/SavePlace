@@ -197,7 +197,7 @@ Copy `.env.example` to an ignored `.env`; no real key belongs in Git.
 | `PROBE_TOKEN` | Authenticates the fixed Railway probe. |
 | `SAVEPLACE_PROBE_URL`, `SAVEPLACE_API_URL` | Trusted-terminal targets for probe and persisted-session smoke checks. |
 | `INSTAGRAM_OEMBED_ACCESS_TOKEN`, `INSTAGRAM_OEMBED_ENDPOINT`, `INSTAGRAM_OEMBED_TEST_URL` | Optional official Instagram oEmbed integration and its opt-in contract test. |
-| `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Optional price from the active Google billing contract. Leave blank when unknown. |
+| `GOOGLE_PLACES_TEXT_SEARCH_PRICE_PER_UNIT_USD`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_SOURCE`, `GOOGLE_PLACES_TEXT_SEARCH_PRICING_EFFECTIVE_DATE` | Google Text Search pricing baseline. Leave all three blank when unknown; when setting a price, source and ISO effective date are required. |
 
 The M2.4 adapter pins `jev-1.13.0`; its estimated cost uses TypeSafe's
 published US$0.042 per one million input tokens for that model (checked
@@ -213,6 +213,15 @@ npm run db:migrate:production
 Use a Railway Postgres variable reference for `DATABASE_URL`; never copy a
 connection URL into version control. The migration command is safe to rerun,
 but production recovery remains an intentional operational action.
+
+For a cost report usable in an M3 decision, copy the exact price from the
+active Google billing contract into the three Google pricing variables in
+Railway. The value itself stays in deployment configuration, while the source
+and effective date travel with each provider-usage record. Historic analyses
+recorded before this baseline remain explicitly unpriced; do not treat their
+aggregate as an exact cost. The pricing baseline is also part of the analysis
+cache configuration, so changing it deliberately starts a new cache entry
+instead of relabeling a previously unpriced provider request.
 
 ### Validation commands
 
